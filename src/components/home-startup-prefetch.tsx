@@ -29,7 +29,6 @@ export function HomeStartupPrefetch({ onReady }: { onReady?: () => void }) {
     authKey,
     onReady,
     queryClient,
-    settings,
     settings.homeMode,
     settings.homeShowAllAddonRows,
     settings.region,

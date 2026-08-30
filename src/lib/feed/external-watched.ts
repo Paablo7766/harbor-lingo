@@ -1,4 +1,5 @@
 import { fetchWatchedKeySet } from "@/lib/trakt/history";
+import { isAuthenticated as isTraktAuthenticated } from "@/lib/trakt/session";
 import { fetchWatchedHistory } from "@/lib/simkl/history";
 
 const STORAGE_KEY = "harbor.feed.external-watched.v1";
@@ -50,7 +51,9 @@ export async function prewarmExternalWatched(): Promise<void> {
   if (inflight) return inflight;
   inflight = (async () => {
     const [traktKeys, simkl] = await Promise.all([
-      fetchWatchedKeySet().catch(() => new Set<string>()),
+      isTraktAuthenticated()
+        ? fetchWatchedKeySet().catch(() => new Set<string>())
+        : Promise.resolve(new Set<string>()),
       fetchWatchedHistory(400).catch(() => []),
     ]);
     const out = new Set<string>(load());

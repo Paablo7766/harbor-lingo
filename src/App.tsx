@@ -159,7 +159,7 @@ const viewSuspenseFallback = <ViewRouteFallback />;
 
 const KEEP_ALIVE_MS = 1500;
 const IDLE_EVICT_MS = 10 * 1000;
-const IDLE_EVICT_MS_MAIN = 90 * 1000;
+const IDLE_EVICT_MS_MAIN = 20 * 1000;
 const PRESSURE_EVICT_MS = 1500;
 const UI_SCALE_MIN = 0.8;
 const UI_SCALE_MAX = 1.6;
@@ -853,7 +853,7 @@ function Shell() {
   const awardAlive = useKeepAlive(awardTop, awardTop);
   const animeAwardAlive = useKeepAlive(animeAwardTop, animeAwardTop && !!animeAwardSource);
   const pickerAlive = useKeepAlive(pickerTop, !!picker);
-  const showsAlive = useIdleEvict(showsTop, false, IDLE_EVICT_MS_MAIN);
+  const showsAlive = useIdleEvict(showsTop, false, IDLE_EVICT_MS);
   const libraryAlive = useIdleEvict(libraryTop);
   const vodAlive = useIdleEvict(vodTop);
   const downloadsAlive = useIdleEvict(downloadsTop);
