@@ -16,7 +16,6 @@ const RAIL = "linear-gradient(180deg, #8fbcbb59, #88c0d033 44%, #b48ead2b 78%, #
 const PRIMARY_IDS = new Set([
   "home",
   "discover",
-  "movies",
   "shows",
   "vod",
 ]);

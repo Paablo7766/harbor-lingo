@@ -113,7 +113,6 @@ const importCollection = () => import("@/views/collection");
 const importEpisodeDetail = () => import("@/views/episode-detail");
 const importPlayPicker = () => import("@/views/play-picker");
 const importPlayer = () => import("@/views/player");
-const importMovies = () => import("@/views/movies");
 const importQueue = () => import("@/views/queue");
 const importService = () => import("@/views/service");
 const importSettings = () => import("@/views/settings");
@@ -142,7 +141,6 @@ const CollectionsView = lazy(() =>
 );
 const PlayPicker = lazy(() => importPlayPicker().then((m) => ({ default: m.PlayPicker })));
 const PlayerView = lazy(() => importPlayer().then((m) => ({ default: m.PlayerView })));
-const Movies = lazy(() => importMovies().then((m) => ({ default: m.Movies })));
 const KidsDetailView = lazy(() =>
   import("@/views/kids-detail").then((m) => ({ default: m.KidsDetailView })),
 );
@@ -173,10 +171,9 @@ function useViewPreloader() {
         ? win.requestIdleCallback(cb, { timeout })
         : window.setTimeout(cb, Math.min(timeout, 800));
 
-    // Priority: Movies/Shows chunks first — they were lazy and felt slower than Anime.
+    // Priority: Shows chunk first — it was lazy and felt slower than other tabs.
     const priorityId = schedule(() => {
       if (cancelled) return;
-      void importMovies();
       void importShows();
       void importDiscover();
       void importDetail();
@@ -871,7 +868,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
   const queueTop = topKind === "queue";
   const serviceTop = topKind === "service";
   const homeTop = topKind === "home";
-  const moviesTop = topKind === "movies";
   const showsTop = topKind === "shows";
   const libraryTop = topKind === "library";
   const vodTop = topKind === "vod";
@@ -925,7 +921,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
   const awardAlive = useKeepAlive(awardTop, awardTop);
   const animeAwardAlive = useKeepAlive(animeAwardTop, animeAwardTop && !!animeAwardSource);
   const pickerAlive = useKeepAlive(pickerTop, !!picker);
-  const moviesAlive = useIdleEvict(moviesTop);
   const showsAlive = useIdleEvict(showsTop);
   const libraryAlive = useIdleEvict(libraryTop);
   const vodAlive = useIdleEvict(vodTop);
@@ -1004,13 +999,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
           <div className={layer(wrappedTop)}>
             <Suspense fallback={null}>
               <WrappedView active={wrappedTop} />
-            </Suspense>
-          </div>
-        )}
-        {moviesAlive && (
-          <div className={layer(moviesTop)}>
-            <Suspense fallback={null}>
-              <Movies active={moviesTop} />
             </Suspense>
           </div>
         )}

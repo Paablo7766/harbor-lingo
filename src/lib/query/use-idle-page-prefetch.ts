@@ -2,13 +2,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { preloadCatalogPage } from "@/lib/catalog-page";
 import { fetchAddonsDirectory, fetchInstalledAddonsPair } from "@/lib/addons-store/store";
-import { recentlyPlayed } from "@/lib/playback-history";
 import { queryKeys } from "@/lib/query/keys";
 import { useSettings } from "@/lib/settings";
 import type { Settings } from "@/lib/settings/types";
 import { useAuth } from "@/lib/auth";
 import { prefetchDiscoverPage } from "@/views/discover/discover-queries";
-import { buildMovieHero, movieSpecs } from "@/views/movies/movie-specs";
 import { buildShowHero } from "@/views/shows/hero-curation";
 import { showSpecs } from "@/views/shows/show-specs";
 
@@ -43,15 +41,7 @@ export function preloadNavPage(
   }
   if (!tmdbKey) return;
   const scope = `tmdb:${tmdbKey}:${region}`;
-  if (view === "movies") {
-    void preloadCatalogPage(queryClient, {
-      pageId: "movies",
-      scope,
-      specs: movieSpecs(tmdbKey, region),
-      heroFetcher: () => buildMovieHero(tmdbKey, recentlyPlayed()),
-      limit: PRELOAD_LIMIT,
-    });
-  } else if (view === "shows") {
+  if (view === "shows") {
     void preloadCatalogPage(queryClient, {
       pageId: "shows",
       scope,

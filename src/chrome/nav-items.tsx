@@ -3,7 +3,6 @@ import { AddonsIcon } from "@/components/icons/addons-icon";
 import { DiscoverIcon } from "@/components/icons/discover-icon";
 import { HomeIcon } from "@/components/icons/home-icon";
 import { LibraryIcon } from "@/components/icons/library-icon";
-import { MoviesIcon } from "@/components/icons/movies-icon";
 import { PlaylistVodIcon } from "@/components/icons/playlist-vod-icon";
 import { SettingsIcon } from "@/components/icons/settings-icon";
 import { TvIcon } from "@/components/icons/tv-icon";
@@ -14,7 +13,6 @@ import type { View } from "@/lib/view";
 export type NavItemId =
   | "home"
   | "discover"
-  | "movies"
   | "shows"
   | "vod"
   | "library"
@@ -46,13 +44,6 @@ export const NAV_ITEMS: NavItem[] = [
     render: (active) => <DiscoverIcon active={active} />,
     view: "discover",
     parentalKey: "discover",
-  },
-  {
-    id: "movies",
-    label: "nav.movies",
-    render: (active) => <MoviesIcon active={active} />,
-    view: "movies",
-    parentalKey: "movies",
   },
   {
     id: "shows",

@@ -25,7 +25,6 @@ export type View =
   | "settings"
   | "discover"
   | "addons"
-  | "movies"
   | "shows"
   | "library"
   | "vod"
@@ -108,7 +107,6 @@ export type Frame =
   | { kind: "addon-detail"; id: string }
   | { kind: "wrapped" }
   | { kind: "queue" }
-  | { kind: "movies" }
   | { kind: "shows" }
   | { kind: "library" }
   | { kind: "vod" }
@@ -149,7 +147,6 @@ const ROOT_VIEW_BY_KIND: Record<Frame["kind"], View | null> = {
   "addon-detail": "addons",
   wrapped: "wrapped",
   queue: "discover",
-  movies: "movies",
   shows: "shows",
   library: "library",
   vod: "vod",
@@ -310,8 +307,6 @@ function frameKey(f: Frame): string {
       return "wrapped";
     case "queue":
       return "queue";
-    case "movies":
-      return "movies";
     case "shows":
       return "shows";
     case "library":
@@ -588,11 +583,6 @@ export function ViewProvider({ children }: { children: ReactNode }) {
           rowScrollMem.current.clear();
           return [{ kind: "downloads" }];
         }
-        if (v === "movies") {
-          scrollMem.current.clear();
-          rowScrollMem.current.clear();
-          return [{ kind: "movies" }];
-        }
         if (v === "shows") {
           scrollMem.current.clear();
           rowScrollMem.current.clear();
@@ -652,10 +642,8 @@ export function ViewProvider({ children }: { children: ReactNode }) {
       const top = s[s.length - 1];
       if (top.kind !== "meta") return s;
       const m = top.meta;
-      let root: Frame;
-      if (m.type === "series" || m.type === "tv") root = { kind: "shows" };
-      else root = { kind: "movies" };
-      return [root, { kind: "meta", meta: m }];
+      if (m.type !== "series" && m.type !== "tv") return s;
+      return [{ kind: "shows" }, { kind: "meta", meta: m }];
     });
   }, [setNavStack]);
 

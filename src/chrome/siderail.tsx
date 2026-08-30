@@ -16,7 +16,7 @@ import { close, minimize, toggleMaximize } from "@/lib/window";
 
 const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-const PRIMARY_IDS = new Set(["home", "discover", "movies", "shows", "vod"]);
+const PRIMARY_IDS = new Set(["home", "discover", "shows", "vod"]);
 
 export function SideRail() {
   const { view, setView, chromeHidden } = useView();

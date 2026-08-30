@@ -22,4 +22,4 @@ export type CatalogPageRow = {
   fetcher?: (page: number) => Promise<Meta[]>;
 };
 
-export type CatalogPageId = "movies" | "shows" | "home";
+export type CatalogPageId = "shows" | "home";

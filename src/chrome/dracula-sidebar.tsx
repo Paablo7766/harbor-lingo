@@ -14,7 +14,6 @@ import { HoverNavIcon } from "@/chrome/hover-nav-icon";
 const PRIMARY_IDS = new Set([
   "home",
   "discover",
-  "movies",
   "shows",
   "vod",
 ]);

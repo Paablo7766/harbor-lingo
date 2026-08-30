@@ -18,7 +18,6 @@ const MIST = "oklch(0.72 0.05 150)";
 const PRIMARY_IDS = new Set<string>([
   "home",
   "discover",
-  "movies",
   "shows",
   "vod",
 ]);
