@@ -1,7 +1,6 @@
 import { ArrowLeft, Clock, Compass, ListTree, Loader2, Shuffle, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AddonsIcon } from "@/components/icons/addons-icon";
-import { CalendarIcon } from "@/components/icons/calendar-icon";
 import { DiscoverIcon } from "@/components/icons/discover-icon";
 import { HomeIcon } from "@/components/icons/home-icon";
 import { LibraryIcon } from "@/components/icons/library-icon";
@@ -48,7 +47,6 @@ const JUMP_TARGETS: Jump[] = [
   { view: "discover", label: "Discover", parentalKey: "discover", icon: <DiscoverIcon /> },
   { view: "movies", label: "Movies", parentalKey: "movies", icon: <MoviesIcon /> },
   { view: "shows", label: "Shows", parentalKey: "shows", icon: <TvIcon /> },
-  { view: "calendar", label: "Calendar", parentalKey: "calendar", icon: <CalendarIcon /> },
   { view: "library", label: "My Library", parentalKey: "library", icon: <LibraryIcon /> },
   { view: "addons", label: "Addons", parentalKey: "addons", icon: <AddonsIcon /> },
 ];

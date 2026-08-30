@@ -100,7 +100,6 @@ import {
 import { HarborQueryProvider, useIdlePagePrefetch } from "@/lib/query";
 import { HarborRouterProvider, ViewRouterSync } from "@/router";
 
-const importCalendar = () => import("@/views/calendar");
 const importWrapped = () => import("@/views/wrapped");
 const importDetail = () => import("@/views/detail");
 const importAddons = () => import("@/views/addons");
@@ -125,7 +124,6 @@ const importDownloads = () => import("@/views/downloads");
 const importMatchDetail = () => import("@/views/live/match-detail-view");
 const importOnboarding = () => import("@/components/onboarding");
 
-const CalendarView = lazy(() => importCalendar().then((m) => ({ default: m.CalendarView })));
 const WrappedView = lazy(() => importWrapped().then((m) => ({ default: m.WrappedView })));
 const DetailView = lazy(() => importDetail().then((m) => ({ default: m.DetailView })));
 const AddonsView = lazy(() => importAddons().then((m) => ({ default: m.AddonsView })));
@@ -192,7 +190,6 @@ function useViewPreloader() {
       void importAddons();
       void importPerson();
       void importFilter();
-      void importCalendar();
       void importQueue();
       void importAward();
       void importAnimeAward();
@@ -870,7 +867,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
   const settingsTop = topKind === "settings";
   const discoverTop = topKind === "discover";
   const addonsTop = topKind === "addons" || topKind === "addon-detail";
-  const calendarTop = topKind === "calendar";
   const wrappedTop = topKind === "wrapped";
   const queueTop = topKind === "queue";
   const serviceTop = topKind === "service";
@@ -907,7 +903,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
   const settingsAlive = useIdleEvict(settingsTop, overlayPinned);
   const discoverAlive = useIdleEvict(discoverTop);
   const addonsAlive = useIdleEvict(addonsTop);
-  const calendarAlive = useIdleEvict(calendarTop);
   const wrappedAlive = useIdleEvict(wrappedTop);
   const queueAlive = useKeepAlive(queueTop, queueTop);
   const serviceAlive = useKeepAlive(serviceTop, serviceTop && !!service);
@@ -1002,13 +997,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
           <div className={layer(addonsTop)}>
             <Suspense fallback={null}>
               <AddonsView />
-            </Suspense>
-          </div>
-        )}
-        {calendarAlive && (
-          <div className={layer(calendarTop)}>
-            <Suspense fallback={null}>
-              <CalendarView />
             </Suspense>
           </div>
         )}
