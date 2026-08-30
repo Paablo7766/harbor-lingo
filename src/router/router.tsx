@@ -7,6 +7,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { createContext, useContext, type ReactNode } from "react";
+import { loadDetail, TAB_ROUTE_LOADERS } from "./view-chunks";
 
 /**
  * Slot so the existing App tree can render inside RouterProvider without
@@ -28,33 +29,30 @@ const rootRoute = createRootRoute({
   component: RootRouteComponent,
 });
 
-function tabRoute(path: string) {
+function tabRoute(path: string, load?: () => Promise<unknown>) {
   return createRoute({
     getParentRoute: () => rootRoute,
     path,
+    loader: load ? () => load() : undefined,
     component: () => null,
   });
 }
 
 const routeTree = rootRoute.addChildren([
   tabRoute("/"),
-  tabRoute("/discover"),
-  tabRoute("/catalogs"),
-  tabRoute("/movies"),
-  tabRoute("/shows"),
-  tabRoute("/kids"),
-  tabRoute("/anime"),
-  tabRoute("/live"),
-  tabRoute("/vod"),
-  tabRoute("/calendar"),
-  tabRoute("/library"),
-  tabRoute("/downloads"),
-  tabRoute("/addons"),
+  tabRoute("/discover", TAB_ROUTE_LOADERS["/discover"]),
+  tabRoute("/catalogs", TAB_ROUTE_LOADERS["/catalogs"]),
+  tabRoute("/shows", TAB_ROUTE_LOADERS["/shows"]),
+  tabRoute("/vod", TAB_ROUTE_LOADERS["/vod"]),
+  tabRoute("/library", TAB_ROUTE_LOADERS["/library"]),
+  tabRoute("/downloads", TAB_ROUTE_LOADERS["/downloads"]),
+  tabRoute("/addons", TAB_ROUTE_LOADERS["/addons"]),
   tabRoute("/settings"),
-  tabRoute("/wrapped"),
+  tabRoute("/wrapped", TAB_ROUTE_LOADERS["/wrapped"]),
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/detail/$type/$id",
+    loader: () => loadDetail(),
     component: () => null,
   }),
 ]);
@@ -62,7 +60,7 @@ const routeTree = rootRoute.addChildren([
 const harborRouter = createRouter({
   routeTree,
   history: createMemoryHistory({ initialEntries: ["/"] }),
-  defaultPreload: "intent",
+  defaultPreload: false,
 });
 
 declare module "@tanstack/react-router" {

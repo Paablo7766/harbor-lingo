@@ -52,7 +52,7 @@ export function preloadNavPage(
   }
 }
 
-const WARM_VIEWS = ["discover", "anime", "movies", "shows", "kids"] as const;
+const WARM_VIEWS = ["discover", "shows"] as const;
 
 /** Idle warmup so the main catalog routes paint from cache on first open. */
 export function useIdlePagePrefetch() {

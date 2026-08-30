@@ -15,12 +15,7 @@ const SUN = "oklch(0.9 0.12 100)";
 const LEAF = "oklch(0.8 0.15 145)";
 const MIST = "oklch(0.72 0.05 150)";
 
-const PRIMARY_IDS = new Set<string>([
-  "home",
-  "discover",
-  "shows",
-  "vod",
-]);
+const PRIMARY_IDS = new Set<string>(["home", "discover", "shows", "vod"]);
 
 export function ForestSidebar() {
   const { view, setView, chromeHidden } = useView();
@@ -32,7 +27,6 @@ export function ForestSidebar() {
 
   const isVisible = (item: NavItem) => {
     if (item.view === "vod" && !settings.showPlaylistsTab) return false;
-    if (item.hideKey && settings.hideContent[item.hideKey]) return false;
     if (locked && item.parentalKey && hiddenTabs[item.parentalKey]) return false;
     return true;
   };

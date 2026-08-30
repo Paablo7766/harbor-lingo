@@ -1,3 +1,5 @@
+import { catalogRowQueryExtrasKey, type CatalogExtras } from "@/lib/cache";
+
 /** Stable query-key factory so cache entries stay consistent across views. */
 export const queryKeys = {
   catalog: {
@@ -5,6 +7,23 @@ export const queryKeys = {
     rows: (authKey: string | null) => ["harbor", "catalog", "rows", authKey ?? "anon"] as const,
     shelf: (base: string, type: string, id: string) =>
       ["harbor", "catalog", "shelf", base, type, id, 1] as const,
+    row: (
+      authKey: string | null,
+      base: string,
+      type: string,
+      catalogId: string,
+      extras?: CatalogExtras,
+    ) =>
+      [
+        "harbor",
+        "catalog",
+        "row",
+        authKey ?? "anon",
+        base.replace(/\/+$/, ""),
+        type,
+        catalogId,
+        catalogRowQueryExtrasKey(extras),
+      ] as const,
   },
   addons: {
     installed: (authKey: string | null) =>

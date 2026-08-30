@@ -27,6 +27,7 @@
         "maximizable": true,
         "minimizable": true,
         "center": true,
+        "fullscreen": true,
         "additionalBrowserArgs": "--disk-cache-size=104857600 --media-cache-size=52428800 --autoplay-policy=no-user-gesture-required --disable-features=HardwareMediaKeyHandling"
       }
     ],

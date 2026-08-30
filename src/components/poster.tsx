@@ -188,6 +188,7 @@ export function Poster({
   children,
   onError,
   lazy = false,
+  fetchPriority,
   fallbacks,
 }: {
   src?: string;
@@ -198,6 +199,7 @@ export function Poster({
   children?: React.ReactNode;
   onError?: () => void;
   lazy?: boolean;
+  fetchPriority?: "high" | "low" | "auto";
   fallbacks?: Array<string | null | undefined>;
 }) {
   const { settings } = useSettings();
@@ -386,7 +388,8 @@ export function Poster({
           alt=""
           draggable={false}
           decoding="async"
-          loading={lazy ? "lazy" : undefined}
+          loading={lazy ? "lazy" : "eager"}
+          fetchPriority={fetchPriority}
           onLoad={() => {
             posterRetryPolicy.clear([current]);
             setLoaded(true);

@@ -86,11 +86,15 @@ export const PickCard = memo(function PickCard({
   flagRerun = false,
   awardLookupName,
   kids = false,
+  lazy = false,
+  fetchPriority,
 }: {
   meta: Meta;
   flagRerun?: boolean;
   awardLookupName?: string;
   kids?: boolean;
+  lazy?: boolean;
+  fetchPriority?: "high" | "low" | "auto";
 }) {
   const { openMeta, openPicker } = useView();
   const { open: openContextMenu } = useContextMenu();
@@ -537,6 +541,8 @@ export const PickCard = memo(function PickCard({
           seed={meta.id}
           lowResImdb={imdbId}
           ratio="portrait"
+          lazy={lazy}
+          fetchPriority={fetchPriority}
           onError={() => setPosterFailed(true)}
           className={`harbor-card-ring rounded-[var(--poster-radius,12px)] shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.06)] transition-[box-shadow] duration-300 group-hover:shadow-[0_24px_48px_-14px_rgba(0,0,0,0.65),inset_0_1px_0_rgba(255,255,255,0.08)] ${
             customProps ? customProps.className : cardHoverPosterClass(inCardHover)

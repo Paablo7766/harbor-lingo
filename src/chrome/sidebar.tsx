@@ -16,12 +16,7 @@ import { KidsSidebarDoodles } from "./kids-sidebar-doodles";
 import { CollapseToggle } from "@/chrome/sidebar/collapse-toggle";
 import { NAV_ITEMS, applyNavCustomization, type NavItem } from "@/chrome/nav-items";
 
-const PRIMARY_IDS = new Set([
-  "home",
-  "discover",
-  "shows",
-  "vod",
-]);
+const PRIMARY_IDS = new Set(["home", "discover", "shows", "vod"]);
 
 export function Sidebar() {
   const { view, setView, chromeHidden } = useView();
@@ -201,7 +196,6 @@ function ScrollableNav({
   };
   const isItemVisible = (item: NavItem) => {
     if (item.view === "vod" && !settings.showPlaylistsTab) return false;
-    if (item.hideKey && settings.hideContent[item.hideKey]) return false;
     if (locked && item.parentalKey && hiddenTabs[item.parentalKey]) return false;
     return true;
   };

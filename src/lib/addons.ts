@@ -1,6 +1,15 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { safeFetch as fetch } from "@/lib/safe-fetch";
+import { homeCatalogCacheKey, readHomeCatalogPlaceholder, writeHomeCatalogCache } from "./cache";
 import type { Meta } from "./cinemeta";
 import { fetchManifestAt, filterEnabled, loadInstalled } from "./addon-store";
+import { runProgressiveRows, upsertOrdered, INITIAL_VISIBLE_ROWS } from "./progressive-rows";
+import {
+  homeAddonCatalogQueryKey,
+  homeAddonCatalogQueryOptions,
+  logHomeAddonQueryKey,
+} from "./query/home-addon-catalog-query";
+import { createRequestScheduler, type RequestScheduler } from "./request-scheduler";
 
 const STREMIO_API = "https://api.strem.io/api";
 const MAX_ROWS = 24;
@@ -12,9 +21,7 @@ export type CatalogDef = {
   extra?: Array<{ name: string; isRequired?: boolean; options?: string[] }>;
 };
 
-export type AddonResource =
-  | string
-  | { name: string; types?: string[]; idPrefixes?: string[] };
+export type AddonResource = string | { name: string; types?: string[]; idPrefixes?: string[] };
 
 export type Addon = {
   manifest: {
@@ -257,7 +264,8 @@ export async function gatherCatalogAddons(authKey: string | null): Promise<Addon
   const localOnly = filterEnabled(loadInstalled()).filter((l) => !seen.has(l.transportUrl));
   const localFull = await Promise.all(
     localOnly.map(async (l): Promise<Addon | null> => {
-      if (l.manifest?.catalogs?.length) return { manifest: l.manifest, transportUrl: l.transportUrl };
+      if (l.manifest?.catalogs?.length)
+        return { manifest: l.manifest, transportUrl: l.transportUrl };
       const manifest = await fetchManifestAt(l.transportUrl).catch(() => l.manifest ?? null);
       return manifest ? { manifest, transportUrl: l.transportUrl } : null;
     }),
@@ -287,63 +295,181 @@ function catalogRequestUrl(base: string, cat: CatalogDef): string | null {
   return `${base}/catalog/${cat.type}/${cat.id}/${parts.join("&")}.json`;
 }
 
-export async function loadAddonRows(
+export type AddonCatalogDescriptor = {
+  addonId: string;
+  addonName: string;
+  addonLogo?: string;
+  base: string;
+  type: string;
+  catalogId: string;
+  catalogName: string;
+  extras?: CatalogExtra[];
+  rowKey: string;
+  cacheKey: string;
+};
+
+export function listAddonCatalogDescriptors(addons: Addon[]): AddonCatalogDescriptor[] {
+  const out: AddonCatalogDescriptor[] = [];
+  for (const addon of addons) {
+    const base = addon.transportUrl.replace(/\/manifest\.json$/, "");
+    for (const cat of addon.manifest.catalogs ?? []) {
+      if (!cat?.name || !cat.type || !cat.id) continue;
+      if (NON_CONTENT_TYPES.has(cat.type.toLowerCase())) continue;
+      if (!catalogRequestUrl(base, cat)) continue;
+      out.push({
+        addonId: addon.manifest.id,
+        addonName: addon.manifest.name,
+        addonLogo: addon.manifest.logo,
+        base,
+        type: cat.type,
+        catalogId: cat.id,
+        catalogName: cat.name,
+        extras: requiredCatalogExtras(cat) ?? undefined,
+        rowKey: `${addon.manifest.id}-${cat.type}-${cat.id}`,
+        cacheKey: homeCatalogCacheKey(
+          base,
+          cat.type,
+          cat.id,
+          requiredCatalogExtras(cat) ?? undefined,
+        ),
+      });
+    }
+  }
+  return out;
+}
+
+function catalogRequestUrlFromDesc(desc: AddonCatalogDescriptor): string {
+  if (!desc.extras || desc.extras.length === 0) {
+    return `${desc.base}/catalog/${desc.type}/${desc.catalogId}.json`;
+  }
+  const parts = desc.extras.map(
+    (e) => `${encodeURIComponent(e.name)}=${encodeURIComponent(e.value)}`,
+  );
+  return `${desc.base}/catalog/${desc.type}/${desc.catalogId}/${parts.join("&")}.json`;
+}
+
+export function seedAddonCatalogRowCache(
+  queryClient: QueryClient,
   authKey: string | null,
-  opts: { dedup?: boolean; cap?: number } = {},
+  desc: AddonCatalogDescriptor,
+): void {
+  const queryKey = homeAddonCatalogQueryKey(authKey, desc);
+  const cached = readHomeCatalogPlaceholder(desc.cacheKey);
+  if (cached) {
+    queryClient.setQueryData(queryKey, addonRowFromDescriptor(desc, cached));
+  }
+}
+
+function addonRowFromDescriptor(desc: AddonCatalogDescriptor, metas: Meta[]): AddonRow {
+  const origin = {
+    id: desc.addonId,
+    name: desc.addonName,
+    logo: desc.addonLogo,
+    base: desc.base,
+  };
+  return {
+    key: desc.rowKey,
+    type: desc.type,
+    name: desc.catalogName,
+    metas: metas.map((m) => ({ ...m, addonOrigin: origin })),
+    more: {
+      base: desc.base,
+      type: desc.type,
+      id: desc.catalogId,
+      extras: desc.extras,
+    },
+  };
+}
+
+export async function fetchAddonCatalogRow(desc: AddonCatalogDescriptor): Promise<AddonRow | null> {
+  const url = catalogRequestUrlFromDesc(desc);
+  const res = await fetchWithTimeout(url);
+  if (!res || !res.ok) return null;
+  try {
+    const json = await res.json();
+    const raw: Meta[] = json.metas ?? [];
+    if (raw.length === 0) return null;
+    const row = addonRowFromDescriptor(desc, raw);
+    writeHomeCatalogCache(desc.cacheKey, row.metas, {
+      name: desc.catalogName,
+      type: desc.type,
+      rowKey: desc.rowKey,
+      more: row.more,
+    });
+    return row;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadAddonRowsProgressive(
+  authKey: string | null,
+  opts: {
+    dedup?: boolean;
+    cap?: number;
+    onRows?: (rows: AddonRow[]) => void;
+    scheduler?: RequestScheduler;
+    queryClient?: QueryClient;
+  } = {},
 ): Promise<AddonRow[]> {
   const dedup = opts.dedup ?? true;
   const cap = opts.cap ?? (dedup ? MAX_ROWS : 200);
+  const scheduler = opts.scheduler ?? createRequestScheduler({ concurrency: 6 });
   const addons = await gatherCatalogAddons(authKey);
-  const tasks = addons.flatMap((addon) =>
-    (addon.manifest.catalogs ?? [])
-      .filter((c) => c && c.name && c.type && c.id && !NON_CONTENT_TYPES.has(c.type.toLowerCase()))
-      .map(async (cat): Promise<AddonRow | null> => {
-        const base = addon.transportUrl.replace(/\/manifest\.json$/, "");
-        const url = catalogRequestUrl(base, cat);
-        if (!url) return null;
-        const res = await fetchWithTimeout(url);
-        if (!res || !res.ok) return null;
-        try {
-          const json = await res.json();
-          const raw: Meta[] = json.metas ?? [];
-          if (raw.length === 0) return null;
-          const origin = {
-            id: addon.manifest.id,
-            name: addon.manifest.name,
-            logo: addon.manifest.logo,
-            base,
-          };
-          const metas: Meta[] = raw.map((m) => ({ ...m, addonOrigin: origin }));
-          return {
-            key: `${addon.manifest.id}-${cat.type}-${cat.id}`,
-            type: cat.type,
-            name: cat.name,
-            metas,
-            more: { base, type: cat.type, id: cat.id, extras: requiredCatalogExtras(cat) ?? undefined },
-          };
-        } catch {
-          return null;
-        }
-      }),
-  );
-  const results = await Promise.all(tasks);
-  if (!dedup) {
-    const out: AddonRow[] = [];
-    for (const r of results) {
-      if (r) out.push(r);
+  const descriptors = listAddonCatalogDescriptors(addons);
+  const order = descriptors.map((d) => d.rowKey);
+  let collected: AddonRow[] = [];
+
+  const publish = () => {
+    opts.onRows?.(collected.slice());
+  };
+
+  const acceptRow = (row: AddonRow) => {
+    if (dedup) {
+      const norm = normalizeName(row.name, row.type);
+      collected = collected.filter((r) => normalizeName(r.name, r.type) !== norm);
+    } else {
+      collected = collected.filter((r) => r.key !== row.key);
     }
-    return out.slice(0, cap);
+    collected = upsertOrdered(collected, row, order);
+    if (collected.length > cap) collected = collected.slice(0, cap);
+    publish();
+  };
+
+  for (const desc of descriptors) {
+    const cached = readHomeCatalogPlaceholder(desc.cacheKey);
+    if (!cached) continue;
+    acceptRow(addonRowFromDescriptor(desc, cached));
   }
-  const seen = new Set<string>();
-  const deduped: AddonRow[] = [];
-  for (const r of results) {
-    if (!r) continue;
-    const key = normalizeName(r.name, r.type);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(r);
-  }
-  return deduped.slice(0, cap);
+
+  const tasks = descriptors.map((desc, index) => ({
+    key: desc.rowKey,
+    run: async (): Promise<AddonRow | null> => {
+      if (opts.queryClient) {
+        seedAddonCatalogRowCache(opts.queryClient, authKey, desc);
+        const queryOpts = homeAddonCatalogQueryOptions(authKey, desc);
+        if (index < INITIAL_VISIBLE_ROWS) {
+          logHomeAddonQueryKey("home-fetch", desc.rowKey, queryOpts.queryKey);
+        }
+        return opts.queryClient.fetchQuery(queryOpts);
+      }
+      return fetchAddonCatalogRow(desc);
+    },
+  }));
+
+  await runProgressiveRows(tasks, order, {
+    scheduler,
+    onRow: (row) => acceptRow(row),
+  });
+
+  return collected;
+}
+
+export async function loadAddonRows(
+  authKey: string | null,
+  opts: { dedup?: boolean; cap?: number; queryClient?: QueryClient } = {},
+): Promise<AddonRow[]> {
+  return loadAddonRowsProgressive(authKey, opts);
 }
 
 export async function fetchAddonMeta(base: string, type: string, id: string): Promise<Meta | null> {
@@ -365,7 +491,8 @@ export async function fetchAddonCatalogPage(
   extras?: Array<{ name: string; value: string }>,
 ): Promise<Meta[]> {
   const parts: string[] = [];
-  for (const e of extras ?? []) parts.push(`${encodeURIComponent(e.name)}=${encodeURIComponent(e.value)}`);
+  for (const e of extras ?? [])
+    parts.push(`${encodeURIComponent(e.name)}=${encodeURIComponent(e.value)}`);
   if (skip > 0) parts.push(`skip=${skip}`);
   const seg = parts.length ? `/${parts.join("&")}` : "";
   const res = await fetchWithTimeout(`${base}/catalog/${type}/${id}${seg}.json`);
@@ -388,7 +515,13 @@ export function createAddonCatalogFetcher(
   return async (page: number): Promise<Meta[]> => {
     const step = pageSize ?? DEFAULT_CATALOG_PAGE_SIZE;
     const skip = page <= 1 ? 0 : (page - 1) * step;
-    const metas = await fetchAddonCatalogPage(cursor.base, cursor.type, cursor.id, skip, cursor.extras);
+    const metas = await fetchAddonCatalogPage(
+      cursor.base,
+      cursor.type,
+      cursor.id,
+      skip,
+      cursor.extras,
+    );
     if (metas.length > 0 && pageSize == null) pageSize = metas.length;
     return opts.mapMeta ? metas.map(opts.mapMeta) : metas;
   };

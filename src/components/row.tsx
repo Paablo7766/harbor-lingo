@@ -36,6 +36,12 @@ function writePos(el: HTMLDivElement, pos: number): void {
   el.scrollLeft = isRtlTrack(el) ? -pos : pos;
 }
 
+/** Root tab id from keys like `discover:trending` or `home:cw`. */
+function scrollKeyView(scrollKey: string): string | null {
+  const i = scrollKey.indexOf(":");
+  return i > 0 ? scrollKey.slice(0, i) : null;
+}
+
 function columnSpan(value?: string): number {
   const span = value?.match(/span\s+(\d+)/)?.[1];
   return span ? Math.max(1, Number(span)) : 1;
@@ -408,10 +414,13 @@ export function Row({
     track.addEventListener("pointerdown", markInteracted);
     track.addEventListener("keydown", markInteracted);
     const onReset = (e: Event) => {
-      const detail = (e as CustomEvent<{ prefix?: string }>).detail;
+      const detail = (e as CustomEvent<{ prefix?: string; view?: string }>).detail;
       if (!scrollKey) return;
-      // Empty/missing prefix = reset every rail (nav change). Otherwise match prefix.
-      if (detail?.prefix && !scrollKey.startsWith(detail.prefix)) return;
+      if (detail?.view) {
+        if (scrollKeyView(scrollKey) !== detail.view) return;
+      } else if (detail?.prefix && !scrollKey.startsWith(detail.prefix)) {
+        return;
+      }
       if (saveTimer != null) {
         window.clearTimeout(saveTimer);
         saveTimer = null;

@@ -18,6 +18,7 @@ import { startMaintenance, subscribeMemoryPressure } from "@/lib/maintenance";
 import { MiddleClickScroll } from "@/lib/use-middle-click-scroll";
 import { exitWindowFullscreenOnPlayerClose, toggleWindowFullscreen } from "@/lib/fullscreen-state";
 import { flushCloudSync } from "@/views/player/hooks/use-stremio-sync";
+import { ViewRouteFallback } from "@/components/view-route-fallback";
 import { PlayerRouteFallback } from "@/views/player/player-route-fallback";
 import { setNativeMemoryActive } from "@/lib/native-memory";
 import { useOverlayPinned } from "@/lib/overlay-pin";
@@ -83,6 +84,7 @@ import { ViewProvider, useView, type Frame, type MetaFilter, type View } from "@
 import type { MetaType } from "@/lib/cinemeta";
 import { useDiscordPresence } from "@/lib/discord/use-discord-presence";
 import { Home } from "@/views/home";
+import { Settings } from "@/views/settings";
 import { ParentalProvider } from "@/lib/parental";
 import { TraktProvider } from "@/lib/trakt/provider";
 import { AnilistProvider } from "@/lib/anilist/provider";
@@ -97,127 +99,67 @@ import {
   onOpenLocalFile,
   startDeepLinkBridge,
 } from "@/lib/deep-link";
-import { HarborQueryProvider, useIdlePagePrefetch } from "@/lib/query";
+import { HarborQueryProvider } from "@/lib/query";
+import { HomeStartupPrefetch } from "@/components/home-startup-prefetch";
 import { HarborRouterProvider, ViewRouterSync } from "@/router";
+import {
+  loadAddons,
+  loadAnimeAward,
+  loadAward,
+  loadCollection,
+  loadCollections,
+  loadDetail,
+  loadDiscover,
+  loadDownloads,
+  loadEpisodeDetail,
+  loadFilter,
+  loadGrid,
+  loadKidsDetail,
+  loadLibrary,
+  loadPerson,
+  loadPlayPicker,
+  loadPlayer,
+  loadQueue,
+  loadService,
+  loadShows,
+  loadVod,
+  loadWrapped,
+} from "@/router/view-chunks";
 
-const importWrapped = () => import("@/views/wrapped");
-const importDetail = () => import("@/views/detail");
-const importAddons = () => import("@/views/addons");
-const importDiscover = () => import("@/views/discover");
-const importAward = () => import("@/views/award");
-const importAnimeAward = () => import("@/views/anime-award");
-const importFilter = () => import("@/views/filter");
-const importGrid = () => import("@/views/grid");
-const importPerson = () => import("@/views/person");
-const importCollection = () => import("@/views/collection");
-const importEpisodeDetail = () => import("@/views/episode-detail");
-const importPlayPicker = () => import("@/views/play-picker");
-const importPlayer = () => import("@/views/player");
-const importQueue = () => import("@/views/queue");
-const importService = () => import("@/views/service");
-const importSettings = () => import("@/views/settings");
-const importShows = () => import("@/views/shows");
-const importLibrary = () => import("@/views/library");
-const importVod = () => import("@/views/playlist-vod");
-const importDownloads = () => import("@/views/downloads");
-const importMatchDetail = () => import("@/views/live/match-detail-view");
 const importOnboarding = () => import("@/components/onboarding");
 
-const WrappedView = lazy(() => importWrapped().then((m) => ({ default: m.WrappedView })));
-const DetailView = lazy(() => importDetail().then((m) => ({ default: m.DetailView })));
-const AddonsView = lazy(() => importAddons().then((m) => ({ default: m.AddonsView })));
-const Discover = lazy(() => importDiscover().then((m) => ({ default: m.Discover })));
-const AwardView = lazy(() => importAward().then((m) => ({ default: m.AwardView })));
-const AnimeAwardView = lazy(() => importAnimeAward().then((m) => ({ default: m.AnimeAwardView })));
-const FilterView = lazy(() => importFilter().then((m) => ({ default: m.FilterView })));
-const GridView = lazy(() => importGrid().then((m) => ({ default: m.GridView })));
-const PersonView = lazy(() => importPerson().then((m) => ({ default: m.PersonView })));
-const CollectionView = lazy(() => importCollection().then((m) => ({ default: m.CollectionView })));
+const WrappedView = lazy(() => loadWrapped().then((m) => ({ default: m.WrappedView })));
+const DetailView = lazy(() => loadDetail().then((m) => ({ default: m.DetailView })));
+const AddonsView = lazy(() => loadAddons().then((m) => ({ default: m.AddonsView })));
+const Discover = lazy(() => loadDiscover().then((m) => ({ default: m.Discover })));
+const AwardView = lazy(() => loadAward().then((m) => ({ default: m.AwardView })));
+const AnimeAwardView = lazy(() => loadAnimeAward().then((m) => ({ default: m.AnimeAwardView })));
+const FilterView = lazy(() => loadFilter().then((m) => ({ default: m.FilterView })));
+const GridView = lazy(() => loadGrid().then((m) => ({ default: m.GridView })));
+const PersonView = lazy(() => loadPerson().then((m) => ({ default: m.PersonView })));
+const CollectionView = lazy(() => loadCollection().then((m) => ({ default: m.CollectionView })));
 const EpisodeDetailView = lazy(() =>
-  importEpisodeDetail().then((m) => ({ default: m.EpisodeDetailView })),
+  loadEpisodeDetail().then((m) => ({ default: m.EpisodeDetailView })),
 );
-const CollectionsView = lazy(() =>
-  import("@/views/collections").then((m) => ({ default: m.CollectionsView })),
-);
-const PlayPicker = lazy(() => importPlayPicker().then((m) => ({ default: m.PlayPicker })));
-const PlayerView = lazy(() => importPlayer().then((m) => ({ default: m.PlayerView })));
-const KidsDetailView = lazy(() =>
-  import("@/views/kids-detail").then((m) => ({ default: m.KidsDetailView })),
-);
-const QueueView = lazy(() => importQueue().then((m) => ({ default: m.QueueView })));
-const ServiceView = lazy(() => importService().then((m) => ({ default: m.ServiceView })));
-const Settings = lazy(() => importSettings().then((m) => ({ default: m.Settings })));
-const Shows = lazy(() => importShows().then((m) => ({ default: m.Shows })));
-const LibraryView = lazy(() => importLibrary().then((m) => ({ default: m.LibraryView })));
-const MatchDetailView = lazy(() =>
-  importMatchDetail().then((m) => ({ default: m.MatchDetailView })),
-);
-const PlaylistVodView = lazy(() => importVod().then((m) => ({ default: m.PlaylistVodView })));
-const DownloadsView = lazy(() => importDownloads().then((m) => ({ default: m.DownloadsView })));
+const CollectionsView = lazy(() => loadCollections().then((m) => ({ default: m.CollectionsView })));
+const PlayPicker = lazy(() => loadPlayPicker().then((m) => ({ default: m.PlayPicker })));
+const PlayerView = lazy(() => loadPlayer().then((m) => ({ default: m.PlayerView })));
+const KidsDetailView = lazy(() => loadKidsDetail().then((m) => ({ default: m.KidsDetailView })));
+const QueueView = lazy(() => loadQueue().then((m) => ({ default: m.QueueView })));
+const ServiceView = lazy(() => loadService().then((m) => ({ default: m.ServiceView })));
+const Shows = lazy(() => loadShows().then((m) => ({ default: m.Shows })));
+const LibraryView = lazy(() => loadLibrary().then((m) => ({ default: m.LibraryView })));
+const PlaylistVodView = lazy(() => loadVod().then((m) => ({ default: m.PlaylistVodView })));
+const DownloadsView = lazy(() => loadDownloads().then((m) => ({ default: m.DownloadsView })));
 const OnboardingModal = lazy(() =>
   importOnboarding().then((m) => ({ default: m.OnboardingModal })),
 );
 
-function useViewPreloader() {
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    let cancelled = false;
-    const win = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    const schedule = (cb: () => void, timeout: number) =>
-      typeof win.requestIdleCallback === "function"
-        ? win.requestIdleCallback(cb, { timeout })
-        : window.setTimeout(cb, Math.min(timeout, 800));
-
-    // Priority: Shows chunk first — it was lazy and felt slower than other tabs.
-    const priorityId = schedule(() => {
-      if (cancelled) return;
-      void importShows();
-      void importDiscover();
-      void importDetail();
-      void importPlayPicker();
-      void importPlayer();
-    }, 1200);
-
-    const restId = schedule(() => {
-      if (cancelled) return;
-      void importSettings();
-      void importAddons();
-      void importPerson();
-      void importFilter();
-      void importQueue();
-      void importAward();
-      void importAnimeAward();
-      void importService();
-      void importMatchDetail();
-      void importOnboarding();
-      void importLibrary();
-      void importVod();
-      void importDownloads();
-    }, 2800);
-
-    return () => {
-      cancelled = true;
-      if (typeof win.cancelIdleCallback === "function") {
-        win.cancelIdleCallback(priorityId as number);
-        win.cancelIdleCallback(restId as number);
-      } else {
-        window.clearTimeout(priorityId);
-        window.clearTimeout(restId);
-      }
-    };
-  }, []);
-}
-
-function IdlePagePrefetch() {
-  useIdlePagePrefetch();
-  return null;
-}
+const viewSuspenseFallback = <ViewRouteFallback />;
 
 const KEEP_ALIVE_MS = 1500;
 const IDLE_EVICT_MS = 10 * 1000;
+const IDLE_EVICT_MS_MAIN = 90 * 1000;
 const PRESSURE_EVICT_MS = 1500;
 const UI_SCALE_MIN = 0.8;
 const UI_SCALE_MAX = 1.6;
@@ -245,7 +187,7 @@ function useKeepAlive(active: boolean, requested: boolean, pin = false): boolean
   return requested && (mounted || active || pin);
 }
 
-function useIdleEvict(active: boolean, pin = false): boolean {
+function useIdleEvict(active: boolean, pin = false, idleMs = IDLE_EVICT_MS): boolean {
   const [alive, setAlive] = useState(active);
   const [pressure, setPressure] = useState(false);
   useEffect(() => subscribeMemoryPressure(setPressure), []);
@@ -255,9 +197,9 @@ function useIdleEvict(active: boolean, pin = false): boolean {
       return;
     }
     if (!alive) return;
-    const t = setTimeout(() => setAlive(false), pressure ? PRESSURE_EVICT_MS : IDLE_EVICT_MS);
+    const t = setTimeout(() => setAlive(false), pressure ? PRESSURE_EVICT_MS : idleMs);
     return () => clearTimeout(t);
-  }, [active, alive, pressure, pin]);
+  }, [active, alive, idleMs, pressure, pin]);
   return alive || active || pin;
 }
 
@@ -277,10 +219,10 @@ export function App({ onReady }: { onReady?: () => void }) {
                         <RankingsProvider>
                           <AuthProvider>
                             <OnboardingProvider>
+                              <HomeStartupPrefetch onReady={onReady} />
                               <TogetherProvider>
                                 <ViewProvider>
                                   <ViewRouterSync />
-                                  <IdlePagePrefetch />
                                   <SearchProvider>
                                     <DvrProvider>
                                       <FavoritesProvider>
@@ -298,8 +240,8 @@ export function App({ onReady }: { onReady?: () => void }) {
                                                   <MiddleClickScroll />
                                                   <ThemeBackdrop />
                                                   <WatchlistSync />
-                                                  <Shell onReady={onReady} />
-                                                  <Suspense fallback={null}>
+                                                  <Shell />
+                                                  <Suspense fallback={viewSuspenseFallback}>
                                                     <OnboardingModal />
                                                   </Suspense>
                                                   <TogetherInviteToast />
@@ -467,7 +409,7 @@ function parseDeepLinkEpisode(videoId?: string): { season: number; episode: numb
   return { season, episode };
 }
 
-function Shell({ onReady }: { onReady?: () => void }) {
+function Shell() {
   const {
     topKind,
     service,
@@ -512,12 +454,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
     layout === "nord" ||
     layout === "forest" ||
     layout === "stremio";
-  useViewPreloader();
-
-  useEffect(() => {
-    if (topKind === "home") return;
-    onReady?.();
-  }, [onReady, topKind]);
 
   const handleTvBack = useCallback(() => {
     if (searchOpen) {
@@ -872,8 +808,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
   const libraryTop = topKind === "library";
   const vodTop = topKind === "vod";
   const downloadsTop = topKind === "downloads";
-  const matchDetailTop = topKind === "match-detail";
-
   const [immersive, setImmersive] = useState(false);
   useEffect(() => {
     const onImm = (e: Event) => setImmersive((e as CustomEvent<boolean>).detail === true);
@@ -897,7 +831,7 @@ function Shell({ onReady }: { onReady?: () => void }) {
 
   const overlayPinned = useOverlayPinned();
   const settingsAlive = useIdleEvict(settingsTop, overlayPinned);
-  const discoverAlive = useIdleEvict(discoverTop);
+  const discoverAlive = useIdleEvict(discoverTop, false, IDLE_EVICT_MS_MAIN);
   const addonsAlive = useIdleEvict(addonsTop);
   const wrappedAlive = useIdleEvict(wrappedTop);
   const queueAlive = useKeepAlive(queueTop, queueTop);
@@ -914,35 +848,23 @@ function Shell({ onReady }: { onReady?: () => void }) {
     !!episodeDetail,
     stackKinds.includes("episode-detail"),
   );
-  const { matchDetailGame } = useView();
-  const matchDetailAlive = useKeepAlive(matchDetailTop, !!matchDetailGame);
   const filterAlive = useKeepAlive(filterTop, !!filter);
   const gridAlive = useKeepAlive(gridTop, !!grid, stackKinds.includes("grid"));
   const awardAlive = useKeepAlive(awardTop, awardTop);
   const animeAwardAlive = useKeepAlive(animeAwardTop, animeAwardTop && !!animeAwardSource);
   const pickerAlive = useKeepAlive(pickerTop, !!picker);
-  const showsAlive = useIdleEvict(showsTop);
+  const showsAlive = useIdleEvict(showsTop, false, IDLE_EVICT_MS_MAIN);
   const libraryAlive = useIdleEvict(libraryTop);
   const vodAlive = useIdleEvict(vodTop);
   const downloadsAlive = useIdleEvict(downloadsTop);
 
   return (
     <div data-kids={kid ? "on" : undefined} className="relative flex h-full">
-      {!settingsTop && !playerActive && !pickerTop && layout === "sidebar" && (
-        <Sidebar />
-      )}
-      {!settingsTop && !playerActive && !pickerTop && layout === "dracula" && (
-        <DraculaSidebar />
-      )}
-      {!settingsTop && !playerActive && !pickerTop && layout === "nord" && (
-        <NordSidebar />
-      )}
-      {!settingsTop && !playerActive && !pickerTop && layout === "forest" && (
-        <ForestSidebar />
-      )}
-      {!settingsTop && !playerActive && !pickerTop && layout === "stremio" && (
-        <StremioRail />
-      )}
+      {!settingsTop && !playerActive && !pickerTop && layout === "sidebar" && <Sidebar />}
+      {!settingsTop && !playerActive && !pickerTop && layout === "dracula" && <DraculaSidebar />}
+      {!settingsTop && !playerActive && !pickerTop && layout === "nord" && <NordSidebar />}
+      {!settingsTop && !playerActive && !pickerTop && layout === "forest" && <ForestSidebar />}
+      {!settingsTop && !playerActive && !pickerTop && layout === "stremio" && <StremioRail />}
       {!settingsTop && !playerActive && !pickerTop && layout === "topdock" && <TopDock />}
       {!settingsTop && !playerActive && !pickerTop && layout === "cinematic" && (
         <CinematicOverlay />
@@ -972,81 +894,79 @@ function Shell({ onReady }: { onReady?: () => void }) {
         className={`relative flex min-h-0 min-w-0 flex-1 flex-col ${playerActive ? "invisible" : ""}`}
       >
         <div className={layer(homeTop)}>
-          <Home active={homeTop} onReady={onReady} />
+          <Home active={homeTop} />
         </div>
         {settingsAlive && (
           <div className={layer(settingsTop)}>
-            <Suspense fallback={null}>
-              <Settings />
-            </Suspense>
+            <Settings />
           </div>
         )}
         {discoverAlive && (
           <div className={layer(discoverTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <Discover active={discoverTop} />
             </Suspense>
           </div>
         )}
         {addonsAlive && (
           <div className={layer(addonsTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <AddonsView />
             </Suspense>
           </div>
         )}
         {wrappedAlive && (
           <div className={layer(wrappedTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <WrappedView active={wrappedTop} />
             </Suspense>
           </div>
         )}
         {showsAlive && (
           <div className={layer(showsTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <Shows active={showsTop} />
             </Suspense>
           </div>
         )}
         {libraryAlive && (
           <div className={layer(libraryTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <LibraryView active={libraryTop} />
             </Suspense>
           </div>
         )}
         {vodAlive && (
           <div className={layer(vodTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <PlaylistVodView active={vodTop} />
             </Suspense>
           </div>
         )}
         {downloadsAlive && (
           <div className={layer(downloadsTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <DownloadsView />
             </Suspense>
           </div>
         )}
         {queueAlive && (
           <div className={layer(queueTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <QueueView />
             </Suspense>
           </div>
         )}
         {serviceAlive && service && (
           <div className={layer(serviceTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <ServiceView key={service} service={service} />
             </Suspense>
           </div>
         )}
         {detailAlive && meta && (
           <div className={layer(detailTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               {kid ? (
                 <KidsDetailView
                   key={`kid-meta-${meta.id}`}
@@ -1066,21 +986,21 @@ function Shell({ onReady }: { onReady?: () => void }) {
         )}
         {personAlive && personId !== null && (
           <div className={layer(personTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <PersonView key={`person-${personId}`} personId={personId} />
             </Suspense>
           </div>
         )}
         {collectionAlive && collectionId !== null && (
           <div className={layer(collectionTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <CollectionView key={`collection-${collectionId}`} collectionId={collectionId} />
             </Suspense>
           </div>
         )}
         {episodeDetailAlive && episodeDetail && (
           <div className={layer(episodeDetailTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <EpisodeDetailView
                 key={`episode-${episodeDetail.seriesId}-${episodeDetail.season}-${episodeDetail.episode}`}
                 seriesId={episodeDetail.seriesId}
@@ -1091,51 +1011,44 @@ function Shell({ onReady }: { onReady?: () => void }) {
             </Suspense>
           </div>
         )}
-        {matchDetailAlive && matchDetailGame && (
-          <div className={layer(matchDetailTop)}>
-            <Suspense fallback={null}>
-              <MatchDetailView key={`match-${matchDetailGame.id}`} game={matchDetailGame} />
-            </Suspense>
-          </div>
-        )}
         {filterAlive && filter && (
           <div className={layer(filterTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <FilterView key={filterReactKey(filter)} filter={filter} />
             </Suspense>
           </div>
         )}
         {gridAlive && grid && (
           <div className={layer(gridTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <GridView key={`grid-${grid.title}`} grid={grid} />
             </Suspense>
           </div>
         )}
         {collectionsIndexAlive && (
           <div className={layer(collectionsIndexTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <CollectionsView />
             </Suspense>
           </div>
         )}
         {awardAlive && awardType && (
           <div className={layer(awardTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <AwardView key={`award-${awardType}`} awardType={awardType} />
             </Suspense>
           </div>
         )}
         {animeAwardAlive && animeAwardSource && (
           <div className={layer(animeAwardTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <AnimeAwardView key={`anime-award-${animeAwardSource}`} sourceId={animeAwardSource} />
             </Suspense>
           </div>
         )}
         {pickerAlive && picker && (
           <div className={layer(pickerTop)}>
-            <Suspense fallback={null}>
+            <Suspense fallback={viewSuspenseFallback}>
               <PlayPicker
                 key={`picker-${picker.meta.id}-${picker.episode?.season ?? ""}-${picker.episode?.episode ?? ""}-${picker.attempt ?? 0}-${picker.intent ?? "play"}`}
                 meta={picker.meta}

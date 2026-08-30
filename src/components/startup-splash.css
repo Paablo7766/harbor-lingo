@@ -1,0 +1,73 @@
+/* Startup splash — animated logo, indeterminate progress */
+
+.harbor-splash-screen {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  user-select: none;
+}
+
+.harbor-splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.5rem;
+}
+
+.harbor-splash-logo-block {
+  position: relative;
+  display: inline-block;
+  animation: harbor-splash-enter 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.harbor-splash-logo {
+  display: block;
+  height: auto;
+  object-fit: contain;
+}
+
+.harbor-splash-logo--animated {
+  width: min(280px, 65vw);
+  max-height: min(280px, 65vw);
+}
+
+.harbor-splash-progress {
+  width: min(140px, 36vw);
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-fg, #f3f3f3) 12%, transparent);
+  overflow: hidden;
+  animation: harbor-splash-enter 500ms cubic-bezier(0.16, 1, 0.3, 1) 180ms both;
+}
+
+.harbor-splash-progress-bar {
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--color-fg, #f3f3f3) 55%, transparent);
+  animation: harbor-splash-indeterminate 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes harbor-splash-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes harbor-splash-indeterminate {
+  0% {
+    transform: translateX(-105%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}

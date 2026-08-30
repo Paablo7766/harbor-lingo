@@ -1,15 +1,20 @@
-import { Check, ChevronLeft, Loader2, Lock, Link2, ShieldCheck, Trash2, Unlock, User as UserIcon } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  Loader2,
+  Lock,
+  Link2,
+  ShieldCheck,
+  Trash2,
+  Unlock,
+  User as UserIcon,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import traktLogo from "@/assets/trakt.svg";
 import simklLogo from "@/assets/simkl.png";
 import { AddonsIcon } from "@/components/icons/addons-icon";
-import { AnimeIcon } from "@/components/icons/anime-icon";
-import { CalendarIcon } from "@/components/icons/calendar-icon";
 import { DiscoverIcon } from "@/components/icons/discover-icon";
 import { LibraryIcon } from "@/components/icons/library-icon";
-import { LiveTvIcon } from "@/components/icons/live-tv-icon";
-import { MoviesIcon } from "@/components/icons/movies-icon";
-import { SportsIcon } from "@/components/icons/sports-icon";
 import { TvIcon } from "@/components/icons/tv-icon";
 import {
   anyTabLocked,
@@ -85,11 +90,9 @@ export function EditorView({
   const [avatarSource, setAvatarSource] = useState<
     "trakt" | "anilist" | "simkl" | "upload" | "builtin" | "removed" | null
   >(null);
-  const [color, setColor] = useState<ProfileColor>(
-    editing?.color ?? nextProfileColor(profiles),
-  );
+  const [color, setColor] = useState<ProfileColor>(editing?.color ?? nextProfileColor(profiles));
   const [shareWith, setShareWith] = useState<string | null>(
-    editing ? editing.shareStremioWith : primary?.id ?? null,
+    editing ? editing.shareStremioWith : (primary?.id ?? null),
   );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [draftPin, setDraftPin] = useState<string | null>(null);
@@ -225,7 +228,9 @@ export function EditorView({
   if (subView.kind === "pin-set") {
     return (
       <PinEntry
-        title={editing ? t("Set a PIN for {name}", { name: trimmed || editing.name }) : t("Set a PIN")}
+        title={
+          editing ? t("Set a PIN for {name}", { name: trimmed || editing.name }) : t("Set a PIN")
+        }
         subtitle={t("Pick a 4-digit PIN. You'll be asked for it before this profile opens.")}
         mode="set"
         onBack={() => setSubView({ kind: "security" })}
@@ -384,7 +389,11 @@ export function EditorView({
                   {loadingAnilistAvatar ? (
                     <Loader2 size={12} className="animate-spin" />
                   ) : anilistAvatar ? (
-                    <img src={anilistAvatar} alt="" className="h-3.5 w-3.5 rounded-full object-cover" />
+                    <img
+                      src={anilistAvatar}
+                      alt=""
+                      className="h-3.5 w-3.5 rounded-full object-cover"
+                    />
                   ) : (
                     <Link2 size={12} />
                   )}
@@ -500,8 +509,10 @@ export function EditorView({
           >
             {t("common.cancel")}
           </button>
-          {editing && !isPrimary && canEditAdvanced && (
-            !confirmingDelete ? (
+          {editing &&
+            !isPrimary &&
+            canEditAdvanced &&
+            (!confirmingDelete ? (
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
@@ -531,8 +542,7 @@ export function EditorView({
                   {t("common.confirm")}
                 </button>
               </div>
-            )
-          )}
+            ))}
         </div>
         <button
           type="button"
@@ -617,7 +627,11 @@ function SecurityRow({
           </span>
         </div>
       </div>
-      <ChevronLeft size={14} strokeWidth={2.2} className="rotate-180 rtl:rotate-0 text-ink-subtle" />
+      <ChevronLeft
+        size={14}
+        strokeWidth={2.2}
+        className="rotate-180 rtl:rotate-0 text-ink-subtle"
+      />
     </button>
   );
 }
@@ -746,7 +760,11 @@ function SecurityView({
               </span>
             </div>
           </div>
-          <ChevronLeft size={14} strokeWidth={2.2} className="rotate-180 rtl:rotate-0 text-ink-subtle" />
+          <ChevronLeft
+            size={14}
+            strokeWidth={2.2}
+            className="rotate-180 rtl:rotate-0 text-ink-subtle"
+          />
         </button>
       </div>
     </div>
@@ -796,18 +814,8 @@ function TabIcon({ iconKey }: { iconKey: LockableTabMeta["iconKey"] }) {
   switch (iconKey) {
     case "discover":
       return <DiscoverIcon active={false} />;
-    case "movies":
-      return <MoviesIcon active={false} />;
     case "shows":
       return <TvIcon active={false} />;
-    case "anime":
-      return <AnimeIcon active={false} />;
-    case "sports":
-      return <SportsIcon active={false} />;
-    case "liveTv":
-      return <LiveTvIcon active={false} />;
-    case "calendar":
-      return <CalendarIcon active={false} />;
     case "library":
       return <LibraryIcon active={false} />;
     case "addons":

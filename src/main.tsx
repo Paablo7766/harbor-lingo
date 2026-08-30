@@ -1,14 +1,18 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { StrictMode, useCallback, useEffect, useState } from "react";
+import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "@/App";
-import { StartupLoader } from "@/components/startup-loader";
+import { StartupSplash } from "@/components/startup-loader";
 import { isLinuxDesktop, isMacDesktop, isWindowsDesktop } from "@/lib/platform";
 import { ModalOverlayApp } from "@/views/modal-overlay-app";
 import { HdrOverlayApp } from "@/views/hdr-overlay-app";
 import { PipApp } from "@/views/pip";
 import { RemoteApp } from "@/views/remote-app";
 import "@/index.css";
+
+const MIN_SPLASH_MS = 600;
+const MAX_SPLASH_MS = 4000;
+const FADE_MS = 300;
 
 function detectRemoteMode(): boolean {
   try {
@@ -98,52 +102,84 @@ if (import.meta.env.DEV && !isPip && !isModal && !isHdrOverlay && !isRemote) {
   void import("./lib/streams/__fixtures__/verify").then((m) => m.logVerificationReport());
 }
 
-function StartupReady() {
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      document.getElementById("harbor-boot")?.remove();
-      const root = document.getElementById("root");
-      if (root instanceof HTMLElement) {
-        root.removeAttribute("data-startup-hidden");
-        root.inert = false;
-      }
-    });
-  }, []);
-  return null;
-}
-
 function MainRoot() {
-  const [appReady, setAppReady] = useState(false);
-  const [startupVisible, setStartupVisible] = useState(true);
-  const markAppReady = useCallback(() => setAppReady(true), []);
-  const revealApplication = useCallback(() => {
-    setStartupVisible(false);
-    document.getElementById("harbor-boot")?.remove();
-    const root = document.getElementById("root");
-    if (root instanceof HTMLElement) {
-      root.removeAttribute("data-startup-hidden");
-      root.inert = false;
-    }
+  const [showSplash, setShowSplash] = useState(true);
+  const [prefetchDone, setPrefetchDone] = useState(false);
+  const mountTimeRef = useRef(Date.now());
+  const closedRef = useRef(false);
+  const minTimerRef = useRef<number | null>(null);
+
+  const markPrefetchDone = useCallback(() => {
+    console.log("[harbor:splash] prefetchDone", new Date().toISOString());
+    setPrefetchDone(true);
+  }, []);
+
+  const closeSplash = useCallback((reason: string) => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    console.log("[harbor:splash] showSplash=false", new Date().toISOString(), reason);
+    setShowSplash(false);
     if ("__TAURI_INTERNALS__" in window) {
-      void import("@tauri-apps/api/core").then(({ invoke }) =>
-        invoke("harbor_startup_ready").catch(() => {}),
-      );
+      window.setTimeout(() => {
+        void import("@tauri-apps/api/core").then(({ invoke }) =>
+          invoke("harbor_startup_ready").catch(() => {}),
+        );
+      }, FADE_MS);
     }
   }, []);
 
-  // Fail-open: never strand the window on the boot loader when the ready
-  // signal hangs (stalled network, dead query) — reveal the UI anyway.
+  const tryCloseSplash = useCallback(() => {
+    if (closedRef.current || !prefetchDone) return;
+    const elapsed = Date.now() - mountTimeRef.current;
+    if (elapsed < MIN_SPLASH_MS) {
+      if (minTimerRef.current != null) window.clearTimeout(minTimerRef.current);
+      minTimerRef.current = window.setTimeout(() => tryCloseSplash(), MIN_SPLASH_MS - elapsed);
+      return;
+    }
+    closeSplash("prefetch-complete-and-min-elapsed");
+  }, [closeSplash, prefetchDone]);
+
   useEffect(() => {
-    if (!startupVisible) return;
-    const t = window.setTimeout(revealApplication, 6000);
-    return () => window.clearTimeout(t);
-  }, [startupVisible, revealApplication]);
+    tryCloseSplash();
+  }, [tryCloseSplash]);
+
+  useEffect(() => {
+    const maxTimer = window.setTimeout(() => {
+      if (closedRef.current) return;
+      console.warn("[harbor:splash] max-timeout-4s forcing prefetchDone + close");
+      setPrefetchDone(true);
+      closeSplash("max-timeout-4s");
+    }, MAX_SPLASH_MS);
+    return () => {
+      window.clearTimeout(maxTimer);
+      if (minTimerRef.current != null) window.clearTimeout(minTimerRef.current);
+    };
+  }, [closeSplash]);
 
   return (
-    <>
-      <App onReady={markAppReady} />
-      {startupVisible && <StartupLoader ready={appReady} onComplete={revealApplication} />}
-    </>
+    <div className="relative h-screen w-screen overflow-hidden">
+      <div
+        className="h-full w-full"
+        style={{
+          opacity: showSplash ? 0 : 1,
+          transition: `opacity ${FADE_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`,
+        }}
+        aria-hidden={showSplash}
+      >
+        <App onReady={markPrefetchDone} />
+      </div>
+      <div
+        className="absolute inset-0 z-10"
+        style={{
+          opacity: showSplash ? 1 : 0,
+          transition: `opacity ${FADE_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`,
+          pointerEvents: showSplash ? "auto" : "none",
+        }}
+        aria-hidden={!showSplash}
+      >
+        <StartupSplash />
+      </div>
+    </div>
   );
 }
 
@@ -160,6 +196,5 @@ createRoot(document.getElementById("root")!).render(
     ) : (
       <MainRoot />
     )}
-    {(isHdrOverlay || isModal || isPip || isRemote) && <StartupReady />}
   </StrictMode>,
 );

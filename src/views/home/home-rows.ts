@@ -1,4 +1,9 @@
 import { createAddonCatalogFetcher, normalizeName, type AddonRow } from "@/lib/addons";
+import {
+  homeBuiltRowCacheKey,
+  readHomeCatalogPlaceholder,
+  writeHomeCatalogCache,
+} from "@/lib/cache";
 import { topMovies, topSeries, type Meta } from "@/lib/cinemeta";
 import {
   jikanNewReleases,
@@ -70,20 +75,50 @@ export function buildTmdbSpecs(settings: Settings): RowSpec[] {
   ];
 }
 
+export function hydrateTmdbRowsFromCache(settings: Settings): HomeRow[] {
+  const specs = buildTmdbSpecs(settings);
+  const rows: HomeRow[] = [];
+  for (const spec of specs) {
+    const cached = readHomeCatalogPlaceholder(homeBuiltRowCacheKey("tmdb", spec.type, spec.key));
+    if (!cached?.length) continue;
+    rows.push({
+      key: spec.key,
+      type: spec.type,
+      name: spec.name,
+      metas: cached,
+      page: 1,
+      hasMore: true,
+      noDedup: spec.noDedup,
+      fetcher: spec.fetcher,
+    });
+  }
+  return rows;
+}
+
 export async function buildTmdbRows(settings: Settings) {
   const specs = buildTmdbSpecs(settings);
   const firstPages = await Promise.all(specs.map((s) => s.fetcher(1).catch(() => [] as Meta[])));
   const rows: HomeRow[] = specs
-    .map((spec, i) => ({
-      key: spec.key,
-      type: spec.type,
-      name: spec.name,
-      metas: firstPages[i],
-      page: 1,
-      hasMore: firstPages[i].length > 0,
-      noDedup: spec.noDedup,
-      fetcher: spec.fetcher,
-    }))
+    .map((spec, i) => {
+      const metas = firstPages[i];
+      if (metas.length > 0) {
+        writeHomeCatalogCache(homeBuiltRowCacheKey("tmdb", spec.type, spec.key), metas, {
+          name: spec.name,
+          type: spec.type,
+          rowKey: spec.key,
+        });
+      }
+      return {
+        key: spec.key,
+        type: spec.type,
+        name: spec.name,
+        metas,
+        page: 1,
+        hasMore: metas.length > 0,
+        noDedup: spec.noDedup,
+        fetcher: spec.fetcher,
+      };
+    })
     .filter((r) => r.metas.length > 0);
 
   const byKey = (k: string) => rows.find((r) => r.key === k)?.metas ?? [];
@@ -94,6 +129,92 @@ export async function buildTmdbRows(settings: Settings) {
     byKey("tmdb-on-the-air")[0],
   ].filter(Boolean) as Meta[];
   return { rows, hero };
+}
+
+const CINEMETA_ROW_DEFS: Array<{
+  key: string;
+  type: "movie" | "series";
+  name: string;
+  pick: (data: {
+    movies: Meta[];
+    series: Meta[];
+    mDrama: Meta[];
+    mComedy: Meta[];
+    mAction: Meta[];
+    mScifi: Meta[];
+    mThriller: Meta[];
+    mAnimation: Meta[];
+    mHorror: Meta[];
+    mRomance: Meta[];
+    mAdventure: Meta[];
+    mDocumentary: Meta[];
+    mMystery: Meta[];
+    mFantasy: Meta[];
+    sDrama: Meta[];
+    sComedy: Meta[];
+    sCrime: Meta[];
+  }) => Meta[];
+}> = [
+  {
+    key: "cm-top-movies",
+    type: "movie",
+    name: "Top 10 on Stremio",
+    pick: (d) => d.movies.slice(0, 10),
+  },
+  { key: "cm-popular", type: "movie", name: "Popular Movies", pick: (d) => d.movies.slice(10, 40) },
+  { key: "cm-drama", type: "movie", name: "Top 10 Drama", pick: (d) => d.mDrama.slice(0, 10) },
+  {
+    key: "cm-trending-tv",
+    type: "series",
+    name: "Trending Series",
+    pick: (d) => d.series.slice(0, 30),
+  },
+  { key: "cm-comedy", type: "movie", name: "Top 10 Comedy", pick: (d) => d.mComedy.slice(0, 10) },
+  { key: "cm-action", type: "movie", name: "Action Hits", pick: (d) => d.mAction.slice(0, 30) },
+  { key: "cm-scifi", type: "movie", name: "Sci-Fi & Fantasy", pick: (d) => d.mScifi.slice(0, 30) },
+  { key: "cm-thriller", type: "movie", name: "Thrillers", pick: (d) => d.mThriller.slice(0, 30) },
+  {
+    key: "cm-animation",
+    type: "movie",
+    name: "Animated Movies",
+    pick: (d) => d.mAnimation.slice(0, 30),
+  },
+  { key: "cm-horror", type: "movie", name: "Horror", pick: (d) => d.mHorror.slice(0, 30) },
+  { key: "cm-romance", type: "movie", name: "Romance", pick: (d) => d.mRomance.slice(0, 30) },
+  { key: "cm-adventure", type: "movie", name: "Adventure", pick: (d) => d.mAdventure.slice(0, 30) },
+  {
+    key: "cm-documentary",
+    type: "movie",
+    name: "Documentaries",
+    pick: (d) => d.mDocumentary.slice(0, 30),
+  },
+  { key: "cm-mystery", type: "movie", name: "Mystery", pick: (d) => d.mMystery.slice(0, 30) },
+  { key: "cm-fantasy", type: "movie", name: "Fantasy", pick: (d) => d.mFantasy.slice(0, 30) },
+  { key: "cm-drama-tv", type: "series", name: "Drama Series", pick: (d) => d.sDrama.slice(0, 30) },
+  {
+    key: "cm-comedy-tv",
+    type: "series",
+    name: "Comedy Series",
+    pick: (d) => d.sComedy.slice(0, 30),
+  },
+  { key: "cm-crime-tv", type: "series", name: "Crime Series", pick: (d) => d.sCrime.slice(0, 30) },
+];
+
+export function hydrateCinemetaRowsFromCache(): HomeRow[] {
+  const rows: HomeRow[] = [];
+  for (const def of CINEMETA_ROW_DEFS) {
+    const cached = readHomeCatalogPlaceholder(homeBuiltRowCacheKey("cinemeta", def.type, def.key));
+    if (!cached?.length) continue;
+    rows.push({
+      key: def.key,
+      type: def.type,
+      name: def.name,
+      metas: cached,
+      page: 1,
+      hasMore: false,
+    });
+  }
+  return rows;
 }
 
 export async function buildCinemetaRows() {
@@ -142,26 +263,36 @@ export async function buildCinemetaRows() {
     page: 1,
     hasMore: false,
   });
-  const rows: HomeRow[] = [
-    make("cm-top-movies", "movie", "Top 10 on Stremio", movies.slice(0, 10)),
-    make("cm-popular", "movie", "Popular Movies", movies.slice(10, 40)),
-    make("cm-drama", "movie", "Top 10 Drama", mDrama.slice(0, 10)),
-    make("cm-trending-tv", "series", "Trending Series", series.slice(0, 30)),
-    make("cm-comedy", "movie", "Top 10 Comedy", mComedy.slice(0, 10)),
-    make("cm-action", "movie", "Action Hits", mAction.slice(0, 30)),
-    make("cm-scifi", "movie", "Sci-Fi & Fantasy", mScifi.slice(0, 30)),
-    make("cm-thriller", "movie", "Thrillers", mThriller.slice(0, 30)),
-    make("cm-animation", "movie", "Animated Movies", mAnimation.slice(0, 30)),
-    make("cm-horror", "movie", "Horror", mHorror.slice(0, 30)),
-    make("cm-romance", "movie", "Romance", mRomance.slice(0, 30)),
-    make("cm-adventure", "movie", "Adventure", mAdventure.slice(0, 30)),
-    make("cm-documentary", "movie", "Documentaries", mDocumentary.slice(0, 30)),
-    make("cm-mystery", "movie", "Mystery", mMystery.slice(0, 30)),
-    make("cm-fantasy", "movie", "Fantasy", mFantasy.slice(0, 30)),
-    make("cm-drama-tv", "series", "Drama Series", sDrama.slice(0, 30)),
-    make("cm-comedy-tv", "series", "Comedy Series", sComedy.slice(0, 30)),
-    make("cm-crime-tv", "series", "Crime Series", sCrime.slice(0, 30)),
-  ].filter((r) => r.metas.length > 0);
+  const data = {
+    movies,
+    series,
+    mDrama,
+    mComedy,
+    mAction,
+    mScifi,
+    mThriller,
+    mAnimation,
+    mHorror,
+    mRomance,
+    mAdventure,
+    mDocumentary,
+    mMystery,
+    mFantasy,
+    sDrama,
+    sComedy,
+    sCrime,
+  };
+  const rows: HomeRow[] = CINEMETA_ROW_DEFS.map((def) => {
+    const metas = def.pick(data);
+    if (metas.length > 0) {
+      writeHomeCatalogCache(homeBuiltRowCacheKey("cinemeta", def.type, def.key), metas, {
+        name: def.name,
+        type: def.type,
+        rowKey: def.key,
+      });
+    }
+    return make(def.key, def.type, def.name, metas);
+  }).filter((r) => r.metas.length > 0);
   const hero = [movies[0], series[0], mDrama[0], mComedy[0], mAction[0], mScifi[0]].filter(
     Boolean,
   ) as Meta[];

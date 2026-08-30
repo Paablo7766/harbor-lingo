@@ -9,7 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { MOVIE_GENRES } from "@/lib/feed/tags";
-import { useParental } from "@/lib/parental";
+import { useAuth } from "@/lib/auth";
+import { useSettings } from "@/lib/settings";
 import {
   detectIntent,
   searchAll,
@@ -23,8 +24,6 @@ import { searchAddonIndex } from "@/lib/search-addon-index";
 import { createSearchRequestGuard } from "@/lib/search-request-guard";
 import { normalizeSearchQuery } from "@/lib/search-query";
 import { gatherCatalogAddons, type Addon } from "@/lib/addons";
-import { useAuth } from "@/lib/auth";
-import { useSettings } from "@/lib/settings";
 
 type SearchState = {
   open: boolean;
@@ -96,7 +95,6 @@ function saveRecent(items: string[]): void {
 export function SearchProvider({ children }: { children: ReactNode }) {
   const { settings } = useSettings();
   const { authKey } = useAuth();
-  const { hiddenTabs } = useParental();
   const [open, setOpen] = useState(false);
   const [query, setQueryState] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
@@ -129,9 +127,9 @@ export function SearchProvider({ children }: { children: ReactNode }) {
 
   const excludeGenres = useMemo(() => {
     const ids: number[] = [];
-    if (hiddenTabs.anime) ids.push(MOVIE_GENRES.Animation);
+    if (settings.hideContent.anime) ids.push(MOVIE_GENRES.Animation);
     return ids;
-  }, [hiddenTabs.anime]);
+  }, [settings.hideContent.anime]);
 
   useEffect(() => {
     // Invalidate an already-running request before the debounce starts. Without
@@ -146,8 +144,8 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     }
     setResults(null);
     setStatus("typing");
-    const animeAllowed = !hiddenTabs.anime;
-    const liveTvAllowed = !hiddenTabs.liveTv && settings.iptvPlaylists.length > 0;
+    const animeAllowed = !settings.hideContent.anime;
+    const liveTvAllowed = !settings.hideContent.liveTv && settings.iptvPlaylists.length > 0;
     debounceRef.current = window.setTimeout(() => {
       if (!requestGuardRef.current.isCurrent(id)) return;
       setStatus("loading");
@@ -263,8 +261,8 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     settings.tmdbLanguage,
     settings.iptvPlaylists,
     excludeGenres,
-    hiddenTabs.anime,
-    hiddenTabs.liveTv,
+    settings.hideContent.anime,
+    settings.hideContent.liveTv,
     ensureAddons,
   ]);
 

@@ -1,20 +1,22 @@
-import { useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-import { HarborLoader } from "@/components/harbor-loader";
+import logoUrl from "@/assets/lingo-logo.gif";
+import "./startup-splash.css";
 
-export function StartupLoader({ ready, onComplete }: { ready: boolean; onComplete: () => void }) {
-  const [animationReady, setAnimationReady] = useState(false);
-  const handleAnimationReady = useCallback(() => setAnimationReady(true), []);
-  const host = document.getElementById("harbor-boot");
-
-  useEffect(() => {
-    if (!host || !ready || !animationReady) return;
-    const frame = requestAnimationFrame(onComplete);
-    return () => cancelAnimationFrame(frame);
-  }, [animationReady, host, onComplete, ready]);
-
-  if (!host) return null;
-  // md matches every other full-screen loader (play transition, player), so
-  // the boat doesn't visibly shrink when the next loading screen appears.
-  return createPortal(<HarborLoader size="md" onReady={handleAnimationReady} />, host);
+export function StartupSplash() {
+  return (
+    <div className="harbor-splash-screen" aria-busy="true" aria-label="Loading">
+      <div className="harbor-splash">
+        <div className="harbor-splash-logo-block">
+          <img
+            src={logoUrl}
+            alt="Lingo"
+            className="harbor-splash-logo harbor-splash-logo--animated"
+            draggable={false}
+          />
+        </div>
+        <div className="harbor-splash-progress" role="progressbar" aria-valuetext="Loading">
+          <div className="harbor-splash-progress-bar" />
+        </div>
+      </div>
+    </div>
+  );
 }

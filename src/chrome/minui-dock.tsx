@@ -33,7 +33,6 @@ export function MinUIDock() {
   const items = applyNavCustomization(NAV_ITEMS, settings.navCustomization);
   const visible = items.filter((it) => {
     if (it.view === "vod" && !settings.showPlaylistsTab) return false;
-    if (it.hideKey && settings.hideContent[it.hideKey]) return false;
     if (it.parentalKey && locked && hiddenTabs[it.parentalKey]) return false;
     return true;
   });

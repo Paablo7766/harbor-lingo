@@ -55,7 +55,6 @@ export function TopDock() {
       (item) =>
         item.id !== "settings" &&
         (item.view !== "vod" || settings.showPlaylistsTab) &&
-        (!item.hideKey || !settings.hideContent[item.hideKey]) &&
         (!item.parentalKey || !locked || !hiddenTabs[item.parentalKey]),
     )
     .map((item) => {

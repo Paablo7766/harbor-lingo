@@ -14,6 +14,10 @@ import type { HomeRow } from "./home-types";
 import { RowControls } from "./row-controls";
 import { watchTitleKey, type WatchedSet } from "@/lib/playback-history";
 import { useSettings } from "@/lib/settings";
+import { INITIAL_VISIBLE_ROWS } from "@/lib/progressive-rows";
+
+const EAGER_IMAGE_ROWS = 2;
+const EAGER_IMAGE_COUNT = 12;
 
 function metaTitleKey(meta: { id?: string }): string | null {
   const id = meta.id;
@@ -52,7 +56,10 @@ function RowTitle({ row }: { row: HomeRow }) {
   const menu = isLetterboxd ? (
     <LetterboxdRowMenu
       canMoveUp={lb.catalogOrder.indexOf(catalogId) > 0}
-      canMoveDown={lb.catalogOrder.indexOf(catalogId) < lb.catalogOrder.length - 1 && lb.catalogOrder.indexOf(catalogId) !== -1}
+      canMoveDown={
+        lb.catalogOrder.indexOf(catalogId) < lb.catalogOrder.length - 1 &&
+        lb.catalogOrder.indexOf(catalogId) !== -1
+      }
       hidden={lb.hiddenCatalogs.includes(catalogId)}
       onMoveUp={() => lb.moveCatalog(catalogId, -1)}
       onMoveDown={() => lb.moveCatalog(catalogId, 1)}
@@ -60,12 +67,17 @@ function RowTitle({ row }: { row: HomeRow }) {
     />
   ) : null;
 
-  if (!row.fetcher) return <>{t(row.name)}{badge}{menu}</>;
+  if (!row.fetcher)
+    return (
+      <>
+        {t(row.name)}
+        {badge}
+        {menu}
+      </>
+    );
   return (
     <button
-      onClick={() =>
-        openGrid({ title: t(row.name), fetcher: row.fetcher!, initial: row.metas })
-      }
+      onClick={() => openGrid({ title: t(row.name), fetcher: row.fetcher!, initial: row.metas })}
       className="group/see inline-flex items-center gap-1.5 text-ink transition-colors hover:text-ink-muted"
     >
       {t(row.name)}
@@ -86,7 +98,10 @@ function RowTitleExtra({ row }: { row: HomeRow }) {
   return (
     <LetterboxdRowMenu
       canMoveUp={lb.catalogOrder.indexOf(catalogId) > 0}
-      canMoveDown={lb.catalogOrder.indexOf(catalogId) < lb.catalogOrder.length - 1 && lb.catalogOrder.indexOf(catalogId) !== -1}
+      canMoveDown={
+        lb.catalogOrder.indexOf(catalogId) < lb.catalogOrder.length - 1 &&
+        lb.catalogOrder.indexOf(catalogId) !== -1
+      }
       hidden={lb.hiddenCatalogs.includes(catalogId)}
       onMoveUp={() => lb.moveCatalog(catalogId, -1)}
       onMoveDown={() => lb.moveCatalog(catalogId, 1)}
@@ -163,7 +178,9 @@ export function CustomizableRows({
         if (hidden && !editMode) return null;
         let metas = row.metas.filter((m) => typeof m.id === "string");
         if (homeLanguages && homeLanguages.length > 0) {
-          metas = metas.filter((m) => !m.originalLanguage || homeLanguages.includes(m.originalLanguage));
+          metas = metas.filter(
+            (m) => !m.originalLanguage || homeLanguages.includes(m.originalLanguage),
+          );
         }
         if (hideWatched) metas = metas.filter((m) => !isWatched(m));
         if (hideUnreleased) metas = metas.filter((m) => !isUnreleased(m));
@@ -175,15 +192,21 @@ export function CustomizableRows({
         )
           return null;
         const idx = orderKeys.indexOf(row.key);
-        const eager = rowIndex < 2;
+        const eagerMount = rowIndex < INITIAL_VISIBLE_ROWS;
+        let eagerImagesLeft = rowIndex < EAGER_IMAGE_ROWS ? EAGER_IMAGE_COUNT : 0;
         const viewAll = row.fetcher
           ? () => openGrid({ title: t(row.name), fetcher: row.fetcher!, initial: row.metas })
           : undefined;
-        const ranked =
-          (customization.numerals ?? []).includes(row.key) && metas.length >= 10;
+        const ranked = (customization.numerals ?? []).includes(row.key) && metas.length >= 10;
         let rowEl;
         if (row.sourceRow) {
-          rowEl = <CustomSourcesRow sourceRow={row.sourceRow} editMode={editMode} onEditFolderImages={onEditFolderImages} />;
+          rowEl = (
+            <CustomSourcesRow
+              sourceRow={row.sourceRow}
+              editMode={editMode}
+              onEditFolderImages={onEditFolderImages}
+            />
+          );
         } else if (ranked) {
           rowEl = (
             <Row
@@ -194,9 +217,19 @@ export function CustomizableRows({
               scrollKey={`home:${row.key}`}
               onViewAll={viewAll}
             >
-              {metas.slice(0, 10).map((m, i) => (
-                <TopRankCard key={m.id} meta={m} rank={i + 1} />
-              ))}
+              {metas.slice(0, 10).map((m, i) => {
+                const highPriority = eagerImagesLeft > 0;
+                if (highPriority) eagerImagesLeft -= 1;
+                return (
+                  <TopRankCard
+                    key={m.id}
+                    meta={m}
+                    rank={i + 1}
+                    lazy={rowIndex >= EAGER_IMAGE_ROWS}
+                    fetchPriority={highPriority ? "high" : undefined}
+                  />
+                );
+              })}
             </Row>
           );
         } else {
@@ -208,17 +241,23 @@ export function CustomizableRows({
               onEndReached={row.hasMore ? () => onLoadMore(row.key) : undefined}
               onViewAll={viewAll}
             >
-              {metas.map((m, i) => (
-                <PickCard key={`${m.id}-${i}`} meta={m} />
-              ))}
+              {metas.map((m, i) => {
+                const highPriority = eagerImagesLeft > 0;
+                if (highPriority) eagerImagesLeft -= 1;
+                return (
+                  <PickCard
+                    key={`${m.id}-${i}`}
+                    meta={m}
+                    lazy={rowIndex >= EAGER_IMAGE_ROWS}
+                    fetchPriority={highPriority ? "high" : undefined}
+                  />
+                );
+              })}
             </Row>
           );
         }
         return (
-          <div
-            key={row.key}
-            data-scroll-anchor={`row:${row.key}`}
-          >
+          <div key={row.key} data-scroll-anchor={`row:${row.key}`}>
             {editMode && (
               <RowControls
                 name={row.name}
@@ -240,7 +279,7 @@ export function CustomizableRows({
                 onDelete={row.sourceRow ? () => onDeleteCustomSource?.(row.key) : undefined}
               />
             )}
-            {!hidden && (eager ? rowEl : <LazyMount minHeight={340}>{rowEl}</LazyMount>)}
+            {!hidden && (eagerMount ? rowEl : <LazyMount minHeight={340}>{rowEl}</LazyMount>)}
           </div>
         );
       })}

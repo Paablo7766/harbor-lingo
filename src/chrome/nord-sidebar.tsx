@@ -13,12 +13,7 @@ import { HoverNavIcon } from "@/chrome/hover-nav-icon";
 
 const FROST = "#88c0d0";
 const RAIL = "linear-gradient(180deg, #8fbcbb59, #88c0d033 44%, #b48ead2b 78%, #81a1c14d)";
-const PRIMARY_IDS = new Set([
-  "home",
-  "discover",
-  "shows",
-  "vod",
-]);
+const PRIMARY_IDS = new Set(["home", "discover", "shows", "vod"]);
 
 export function NordSidebar() {
   const { view, setView, chromeHidden } = useView();
@@ -30,7 +25,6 @@ export function NordSidebar() {
 
   const isVisible = (item: NavItem) => {
     if (item.view === "vod" && !settings.showPlaylistsTab) return false;
-    if (item.hideKey && settings.hideContent[item.hideKey]) return false;
     if (locked && item.parentalKey && hiddenTabs[item.parentalKey]) return false;
     return true;
   };

@@ -25,7 +25,6 @@ export type NavItem = {
   label: string;
   render: (active: boolean) => ReactNode;
   view: View;
-  hideKey?: "anime" | "liveTv" | "sports";
   parentalKey?: LockableTab;
   pinGated?: boolean;
 };

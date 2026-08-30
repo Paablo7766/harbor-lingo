@@ -51,7 +51,17 @@ function WatchlistDot() {
   );
 }
 
-export const TopRankCard = memo(function TopRankCard({ meta, rank }: { meta: Meta; rank: number }) {
+export const TopRankCard = memo(function TopRankCard({
+  meta,
+  rank,
+  lazy = false,
+  fetchPriority,
+}: {
+  meta: Meta;
+  rank: number;
+  lazy?: boolean;
+  fetchPriority?: "high" | "low" | "auto";
+}) {
   const { openMeta } = useView();
   const { open: openContextMenu } = useContextMenu();
   const { settings } = useSettings();
@@ -96,6 +106,8 @@ export const TopRankCard = memo(function TopRankCard({ meta, rank }: { meta: Met
           onError={poster.onError}
           seed={meta.id}
           ratio="portrait"
+          lazy={lazy}
+          fetchPriority={fetchPriority}
           className="harbor-card-ring rounded-xl shadow-[0_0_0_rgba(0,0,0,0)] transition-shadow duration-300 group-hover:shadow-[0_24px_44px_-14px_rgba(0,0,0,0.6)]"
         />
         {inWatchlist && <WatchlistDot />}
@@ -108,7 +120,13 @@ export const TopRankCard = memo(function TopRankCard({ meta, rank }: { meta: Met
   );
 });
 
-export const AnimeRankCard = memo(function AnimeRankCard({ meta, rank }: { meta: Meta; rank: number }) {
+export const AnimeRankCard = memo(function AnimeRankCard({
+  meta,
+  rank,
+}: {
+  meta: Meta;
+  rank: number;
+}) {
   const { openMeta } = useView();
   const { open: openContextMenu } = useContextMenu();
   const { settings } = useSettings();

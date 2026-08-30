@@ -1,4 +1,5 @@
 import { browseFetcher, type BrowseCatalog } from "./catalog-browse";
+import { homeCatalogCacheKey, writeHomeCatalogCache } from "./cache";
 import type { Meta } from "./cinemeta";
 import type { HomeRow } from "@/views/home/home-types";
 import type { PinnedCatalog } from "./pinned-catalogs";
@@ -34,6 +35,11 @@ export async function buildPinnedCatalogRows(descriptors: PinnedCatalog[]): Prom
       const fetcher = browseFetcher(cat, null);
       const metas = await fetcher(1).catch(() => [] as Meta[]);
       if (metas.length === 0) return null;
+      writeHomeCatalogCache(homeCatalogCacheKey(cat.base, cat.type, cat.id), metas, {
+        name: desc.name,
+        type: cat.type === "movie" ? "movie" : "series",
+        rowKey: pinnedRowKey(desc.id),
+      });
       const row: HomeRow = {
         key: pinnedRowKey(desc.id),
         type: cat.type === "movie" ? "movie" : "series",

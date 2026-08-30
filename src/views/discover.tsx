@@ -79,8 +79,12 @@ export function Discover({ active = true }: { active?: boolean }) {
   const [tasteVersion, setTasteVersion] = useState(0);
   const [rails, setRails] = useState<Record<string, Meta[]>>({});
   const [letterboxdRows, setLetterboxdRows] = useState<HomeRow[]>([]);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const wasActiveRef = useRef(active);
 
   useEffect(() => {
+    if (!active) return;
     if (!letterboxd.isActive) {
       setLetterboxdRows([]);
       return;
@@ -110,6 +114,7 @@ export function Discover({ active = true }: { active?: boolean }) {
       cancelled = true;
     };
   }, [
+    active,
     letterboxd.isActive,
     letterboxd.mode,
     letterboxd.configSegment,
@@ -133,6 +138,7 @@ export function Discover({ active = true }: { active?: boolean }) {
   const rowSig = useMemo(() => dailyRows.map((r) => r.id).join("|"), [dailyRows]);
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     let full = false;
     queryClient
@@ -162,6 +168,7 @@ export function Discover({ active = true }: { active?: boolean }) {
       cancelled = true;
     };
   }, [
+    active,
     settings.tmdbKey,
     settings.tmdbLanguage,
     settings.region,
@@ -172,6 +179,7 @@ export function Discover({ active = true }: { active?: boolean }) {
   ]);
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     const hidden = new Set<string>([...getDownvotedIds(), ...getUpvotedIds()]);
     getPool(settings.tmdbKey).then(async (p) => {
@@ -191,6 +199,7 @@ export function Discover({ active = true }: { active?: boolean }) {
       cancelled = true;
     };
   }, [
+    active,
     settings.tmdbKey,
     settings.region,
     settings.feedLocaleBias,
@@ -223,10 +232,12 @@ export function Discover({ active = true }: { active?: boolean }) {
       });
     };
     const offTaste = subscribeTaste(() => {
+      if (!activeRef.current) return;
       rescore();
       bump();
     });
     const offPrefs = subscribePrefs(() => {
+      if (!activeRef.current) return;
       rescore();
       const blocked = new Set<string>([...getDownvotedIds(), ...getUpvotedIds()]);
       setQueue((prev) => prev.filter((it) => !blocked.has(it.meta.id)));
@@ -234,11 +245,15 @@ export function Discover({ active = true }: { active?: boolean }) {
       bump();
     });
     const offPlayback = subscribePlayback(() => {
+      if (!activeRef.current) return;
       rescore();
       dropWatchedRails();
       bump();
     });
-    const offExternal = subscribeExternalWatched(rescore);
+    const offExternal = subscribeExternalWatched(() => {
+      if (!activeRef.current) return;
+      rescore();
+    });
     return () => {
       clearTimeout(timer);
       offTaste();
@@ -249,14 +264,25 @@ export function Discover({ active = true }: { active?: boolean }) {
   }, []);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      wasActiveRef.current = false;
+      return;
+    }
+    const reactivated = !wasActiveRef.current;
+    wasActiveRef.current = true;
+
     setFeat((prev) => rescoreFeatured(prev.pool));
+    const blocked = new Set<string>([...getDownvotedIds(), ...getUpvotedIds()]);
+    setQueue((prev) => prev.filter((it) => !blocked.has(it.meta.id)));
+    setCriticsPickList((prev) => prev.filter((m) => !blocked.has(m.id)));
     const watched = recentlyPlayed();
-    if (watched.ids.size === 0 && watched.titles.size === 0) return;
-    const isWatched = (m: Meta) =>
-      watched.ids.has(m.id) || watched.titles.has(watchTitleKey(m.name));
-    setQueue((prev) => prev.filter((it) => !isWatched(it.meta)));
-    setCriticsPickList((prev) => prev.filter((m) => !isWatched(m)));
+    if (watched.ids.size > 0 || watched.titles.size > 0) {
+      const isWatched = (m: Meta) =>
+        watched.ids.has(m.id) || watched.titles.has(watchTitleKey(m.name));
+      setQueue((prev) => prev.filter((it) => !isWatched(it.meta)));
+      setCriticsPickList((prev) => prev.filter((m) => !isWatched(m)));
+    }
+    if (reactivated) setTasteVersion((v) => v + 1);
   }, [active]);
 
   const ensureLoaded = useCallback(

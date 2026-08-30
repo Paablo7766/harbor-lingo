@@ -20,9 +20,17 @@ import { useCustomLists } from "@/lib/custom-lists";
 import { StreamingRail } from "@/components/streaming-rail";
 import { TopRankCard } from "@/components/top-rank-card";
 import { useQueryClient } from "@tanstack/react-query";
-import { hasTmdbProviderAddon, loadAddonRows, userAddons, type AddonRow } from "@/lib/addons";
-import { queryKeys } from "@/lib/query";
+import {
+  ensureHomeStartupPrefetch,
+  type HomeStartupPrefetchResult,
+} from "@/lib/query/prefetch-home-startup";
 import { isAnimeRow } from "@/lib/is-anime-row";
+import {
+  hasTmdbProviderAddon,
+  loadAddonRowsProgressive,
+  userAddons,
+  type AddonRow,
+} from "@/lib/addons";
 import { buildArabicHomeRows } from "@/lib/arabic/home-rows";
 import { useAuth } from "@/lib/auth";
 import { type Meta } from "@/lib/cinemeta";
@@ -75,8 +83,8 @@ import { useCwAdvance } from "./home/hooks/use-cw-advance";
 import { usePinnedRows } from "./home/hooks/use-pinned-rows";
 import {
   buildAnimeHomeRows,
-  buildCinemetaRows,
-  buildTmdbRows,
+  hydrateCinemetaRowsFromCache,
+  hydrateTmdbRowsFromCache,
   isStreamingServiceRow,
   MAX_PER_ROW,
   mergeRows,
@@ -86,7 +94,13 @@ import { RowSkeleton } from "./home/row-skeleton";
 import { AddSourceModal } from "@/components/add-source-modal";
 import type { SourceRow } from "@/lib/custom-sources";
 
-export function Home({ active = true, onReady }: { active?: boolean; onReady?: () => void }) {
+function hydrateInitialCoreRows(settings: ReturnType<typeof useSettings>["settings"]): HomeRow[] {
+  if (settings.homeMode === "classic") return [];
+  if (settings.tmdbKey) return hydrateTmdbRowsFromCache(settings);
+  return hydrateCinemetaRowsFromCache();
+}
+
+export function Home({ active = true }: { active?: boolean }) {
   const { authKey, user } = useAuth();
   const { settings, update } = useSettings();
   const queryClient = useQueryClient();
@@ -94,7 +108,17 @@ export function Home({ active = true, onReady }: { active?: boolean; onReady?: (
   const uiLang = useUiLanguage();
   const [editMode, setEditMode] = useState(false);
   const [isAddSourceModalOpen, setAddSourceModalOpen] = useState(false);
-  const [rows, setRows] = useState<HomeRow[]>([]);
+  const [coreRows, setCoreRows] = useState<HomeRow[]>(() => hydrateInitialCoreRows(settings));
+  const [addonRows, setAddonRows] = useState<AddonRow[]>([]);
+  const dedupAddonRows = settings.homeMode === "classic" ? false : !settings.homeShowAllAddonRows;
+  const filteredAddonRows = useMemo(() => {
+    if (settings.homeMode === "classic") return addonRows;
+    return addonRows.filter((a) => !isAnimeRow(a) && !isStreamingServiceRow(a.name));
+  }, [addonRows, settings.homeMode]);
+  const rows = useMemo(
+    () => mergeRows(coreRows, filteredAddonRows, { dedup: dedupAddonRows }),
+    [coreRows, filteredAddonRows, dedupAddonRows],
+  );
   const [animeRows, setAnimeRows] = useState<HomeRow[]>([]);
   const [arabicRows, setArabicRows] = useState<HomeRow[]>([]);
   const [traktRows, setTraktRows] = useState<HomeRow[]>([]);
@@ -112,11 +136,7 @@ export function Home({ active = true, onReady }: { active?: boolean; onReady?: (
   const [localWatched, setLocalWatched] = useState<WatchedSet>(() => recentlyPlayed());
   useEffect(() => subscribePlayback(() => setLocalWatched(recentlyPlayed())), []);
   const [heroPool, setHeroPool] = useState<Meta[]>([]);
-  const [heroReady, setHeroReady] = useState(false);
-  useEffect(() => {
-    if (!active || !heroReady) return;
-    onReady?.();
-  }, [active, heroReady, onReady]);
+  const [heroReady, setHeroReady] = useState(() => hydrateInitialCoreRows(settings).length > 0);
   const [items, setItems] = useState<LibraryItem[]>([]);
   const cwVersion = useCwDismissVersion();
   const [tmdbProvidedByAddon, setTmdbProvidedByAddon] = useState(false);
@@ -141,7 +161,22 @@ export function Home({ active = true, onReady }: { active?: boolean; onReady?: (
     row
       .fetcher(next)
       .then((more) => {
-        setRows((rs) =>
+        setCoreRows((rs) =>
+          rs.map((r) => {
+            if (r.key !== rowKey) return r;
+            const ids = new Set(r.metas.map((m) => m.id));
+            const fresh = more.filter((m) => !ids.has(m.id));
+            const combined = [...r.metas, ...fresh];
+            const reachedCap = combined.length >= MAX_PER_ROW;
+            return {
+              ...r,
+              metas: reachedCap ? combined.slice(0, MAX_PER_ROW) : combined,
+              page: next,
+              hasMore: !reachedCap && fresh.length > 0,
+            };
+          }),
+        );
+        setAddonRows((rs) =>
           rs.map((r) => {
             if (r.key !== rowKey) return r;
             const ids = new Set(r.metas.map((m) => m.id));
@@ -173,41 +208,29 @@ export function Home({ active = true, onReady }: { active?: boolean; onReady?: (
     let cancelled = false;
     (async () => {
       const isClassic = settings.homeMode === "classic";
+      const dedupRows = isClassic ? false : !settings.homeShowAllAddonRows;
 
-      let built: { rows: HomeRow[]; hero: Meta[] } = { rows: [], hero: [] };
+      let built: HomeStartupPrefetchResult = { coreRows: [], hero: [] };
       if (!isClassic) {
-        built = settings.tmdbKey
-          ? await buildTmdbRows(settings).catch(() => ({
-              rows: [] as HomeRow[],
-              hero: [] as Meta[],
-            }))
-          : await buildCinemetaRows().catch(() => ({ rows: [] as HomeRow[], hero: [] as Meta[] }));
-        if (built.rows.length === 0) {
-          built = await buildCinemetaRows().catch(() => ({
-            rows: [] as HomeRow[],
-            hero: [] as Meta[],
-          }));
-        }
+        built = await ensureHomeStartupPrefetch(queryClient, settings, authKey).catch(() => ({
+          coreRows: [] as HomeRow[],
+          hero: [] as Meta[],
+        }));
       }
       if (cancelled) return;
-      setRows(mergeRows(built.rows, []));
+      setCoreRows(built.coreRows);
       setHeroPool(built.hero);
       setHeroReady(true);
 
-      const dedupRows = isClassic ? false : !settings.homeShowAllAddonRows;
-      // TanStack Query cache so revisiting home reuses addon catalog rows.
-      const addons = await queryClient
-        .fetchQuery({
-          queryKey: [...queryKeys.catalog.rows(authKey), { dedup: dedupRows }] as const,
-          queryFn: () => loadAddonRows(authKey, { dedup: dedupRows }),
-          staleTime: 3 * 60_000,
-        })
-        .catch(() => [] as AddonRow[]);
+      await loadAddonRowsProgressive(authKey, {
+        dedup: dedupRows,
+        queryClient,
+        onRows: (rows) => {
+          if (cancelled) return;
+          setAddonRows(rows);
+        },
+      }).catch(() => [] as AddonRow[]);
       if (cancelled) return;
-      const filtered = isClassic
-        ? addons
-        : addons.filter((a) => !isAnimeRow(a) && !isStreamingServiceRow(a.name));
-      setRows(mergeRows(built.rows, filtered, { dedup: dedupRows }));
 
       if (authKey) {
         const installed = await userAddons(authKey).catch(() => []);

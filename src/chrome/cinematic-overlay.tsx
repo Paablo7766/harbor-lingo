@@ -15,8 +15,7 @@ import { OverflowNav, type NavEntry } from "@/chrome/nav-overflow";
 import { NAV_ITEMS, applyNavCustomization, type NavItem } from "@/chrome/nav-items";
 import { ProfileChipCompact } from "@/chrome/cinematic-overlay/profile-chip-compact";
 
-const IS_TAURI =
-  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export function CinematicOverlay() {
   const { view, setView, chromeHidden } = useView();
@@ -28,9 +27,7 @@ export function CinematicOverlay() {
   const maxed = useMaximized();
 
   const themePreset =
-    settings.theme.preset !== "custom"
-      ? getThemeById(settings.theme.preset)
-      : null;
+    settings.theme.preset !== "custom" ? getThemeById(settings.theme.preset) : null;
   const customMark = themePreset?.logo?.mark ?? null;
 
   const navigate = (item: NavItem) => {
@@ -41,15 +38,11 @@ export function CinematicOverlay() {
     setView(item.view);
   };
 
-  const navEntries: NavEntry[] = applyNavCustomization(
-    NAV_ITEMS,
-    settings.navCustomization,
-  )
+  const navEntries: NavEntry[] = applyNavCustomization(NAV_ITEMS, settings.navCustomization)
     .filter(
       (item) =>
         item.id !== "settings" &&
         (item.view !== "vod" || settings.showPlaylistsTab) &&
-        (!item.hideKey || !settings.hideContent[item.hideKey]) &&
         (!item.parentalKey || !locked || !hiddenTabs[item.parentalKey]),
     )
     .map((item) => {
@@ -102,12 +95,7 @@ export function CinematicOverlay() {
             aria-label={t("chrome.harborHome")}
           >
             {customMark ? (
-              <img
-                src={customMark}
-                alt=""
-                draggable={false}
-                className="h-7 w-7 object-contain"
-              />
+              <img src={customMark} alt="" draggable={false} className="h-7 w-7 object-contain" />
             ) : (
               <HarborMark className="h-7 w-7" />
             )}
@@ -130,11 +118,7 @@ export function CinematicOverlay() {
           <div className="ms-2 flex shrink-0 items-center gap-1">
             <RecordingPill />
             <TogetherButton variant="ghost" connectStyle="tab" />
-            <IconBtn
-              onClick={() => setSearchOpen(true)}
-              label={t("common.search")}
-              active={false}
-            >
+            <IconBtn onClick={() => setSearchOpen(true)} label={t("common.search")} active={false}>
               <Search size={15} strokeWidth={2.2} />
             </IconBtn>
             <ProfileChipCompact
