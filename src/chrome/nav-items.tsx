@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { AddonsIcon } from "@/components/icons/addons-icon";
-import { CatalogsIcon } from "@/components/icons/catalogs-icon";
 import { CalendarIcon } from "@/components/icons/calendar-icon";
 import { DiscoverIcon } from "@/components/icons/discover-icon";
 import { HomeIcon } from "@/components/icons/home-icon";
@@ -16,7 +15,6 @@ import type { View } from "@/lib/view";
 export type NavItemId =
   | "home"
   | "discover"
-  | "catalogs"
   | "movies"
   | "shows"
   | "vod"
@@ -49,13 +47,6 @@ export const NAV_ITEMS: NavItem[] = [
     label: "nav.discover",
     render: (active) => <DiscoverIcon active={active} />,
     view: "discover",
-    parentalKey: "discover",
-  },
-  {
-    id: "catalogs",
-    label: "nav.catalogs",
-    render: (active) => <CatalogsIcon active={active} />,
-    view: "catalogs",
     parentalKey: "discover",
   },
   {

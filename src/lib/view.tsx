@@ -24,7 +24,6 @@ export type View =
   | "home"
   | "settings"
   | "discover"
-  | "catalogs"
   | "addons"
   | "calendar"
   | "movies"
@@ -106,7 +105,6 @@ export type Frame =
   | { kind: "home" }
   | { kind: "settings" }
   | { kind: "discover" }
-  | { kind: "catalogs" }
   | { kind: "addons" }
   | { kind: "addon-detail"; id: string }
   | { kind: "calendar" }
@@ -149,7 +147,6 @@ const ROOT_VIEW_BY_KIND: Record<Frame["kind"], View | null> = {
   home: "home",
   settings: "settings",
   discover: "discover",
-  catalogs: "catalogs",
   addons: "addons",
   "addon-detail": "addons",
   calendar: "calendar",
@@ -308,8 +305,6 @@ function frameKey(f: Frame): string {
       return "settings";
     case "discover":
       return "discover";
-    case "catalogs":
-      return "catalogs";
     case "addons":
       return "addons";
     case "addon-detail":
@@ -582,11 +577,6 @@ export function ViewProvider({ children }: { children: ReactNode }) {
           scrollMem.current.clear();
           rowScrollMem.current.clear();
           return [{ kind: "discover" }];
-        }
-        if (v === "catalogs") {
-          scrollMem.current.clear();
-          rowScrollMem.current.clear();
-          return [{ kind: "catalogs" }];
         }
         if (v === "addons") {
           scrollMem.current.clear();

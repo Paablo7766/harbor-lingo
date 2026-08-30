@@ -105,7 +105,6 @@ const importWrapped = () => import("@/views/wrapped");
 const importDetail = () => import("@/views/detail");
 const importAddons = () => import("@/views/addons");
 const importDiscover = () => import("@/views/discover");
-const importCatalogs = () => import("@/views/catalogs");
 const importAward = () => import("@/views/award");
 const importAnimeAward = () => import("@/views/anime-award");
 const importFilter = () => import("@/views/filter");
@@ -131,7 +130,6 @@ const WrappedView = lazy(() => importWrapped().then((m) => ({ default: m.Wrapped
 const DetailView = lazy(() => importDetail().then((m) => ({ default: m.DetailView })));
 const AddonsView = lazy(() => importAddons().then((m) => ({ default: m.AddonsView })));
 const Discover = lazy(() => importDiscover().then((m) => ({ default: m.Discover })));
-const Catalogs = lazy(() => importCatalogs().then((m) => ({ default: m.Catalogs })));
 const AwardView = lazy(() => importAward().then((m) => ({ default: m.AwardView })));
 const AnimeAwardView = lazy(() => importAnimeAward().then((m) => ({ default: m.AnimeAwardView })));
 const FilterView = lazy(() => importFilter().then((m) => ({ default: m.FilterView })));
@@ -202,7 +200,6 @@ function useViewPreloader() {
       void importMatchDetail();
       void importOnboarding();
       void importLibrary();
-      void importCatalogs();
       void importVod();
       void importDownloads();
     }, 2800);
@@ -872,7 +869,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
   const animeAwardTop = topKind === "anime-award";
   const settingsTop = topKind === "settings";
   const discoverTop = topKind === "discover";
-  const catalogsTop = topKind === "catalogs";
   const addonsTop = topKind === "addons" || topKind === "addon-detail";
   const calendarTop = topKind === "calendar";
   const wrappedTop = topKind === "wrapped";
@@ -910,7 +906,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
   const overlayPinned = useOverlayPinned();
   const settingsAlive = useIdleEvict(settingsTop, overlayPinned);
   const discoverAlive = useIdleEvict(discoverTop);
-  const catalogsAlive = useIdleEvict(catalogsTop);
   const addonsAlive = useIdleEvict(addonsTop);
   const calendarAlive = useIdleEvict(calendarTop);
   const wrappedAlive = useIdleEvict(wrappedTop);
@@ -1000,13 +995,6 @@ function Shell({ onReady }: { onReady?: () => void }) {
           <div className={layer(discoverTop)}>
             <Suspense fallback={null}>
               <Discover active={discoverTop} />
-            </Suspense>
-          </div>
-        )}
-        {catalogsAlive && (
-          <div className={layer(catalogsTop)}>
-            <Suspense fallback={null}>
-              <Catalogs active={catalogsTop} />
             </Suspense>
           </div>
         )}

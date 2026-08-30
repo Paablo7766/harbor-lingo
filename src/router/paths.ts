@@ -4,7 +4,6 @@ import type { View } from "@/lib/view";
 export const VIEW_PATH: Record<View, string> = {
   home: "/",
   discover: "/discover",
-  catalogs: "/catalogs",
   movies: "/movies",
   shows: "/shows",
   vod: "/vod",

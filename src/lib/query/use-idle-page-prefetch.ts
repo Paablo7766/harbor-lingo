@@ -2,13 +2,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { preloadCatalogPage } from "@/lib/catalog-page";
 import { fetchAddonsDirectory, fetchInstalledAddonsPair } from "@/lib/addons-store/store";
-import { listBrowseCatalogs } from "@/lib/catalog-browse";
 import { recentlyPlayed } from "@/lib/playback-history";
 import { queryKeys } from "@/lib/query/keys";
 import { useSettings } from "@/lib/settings";
 import type { Settings } from "@/lib/settings/types";
 import { useAuth } from "@/lib/auth";
-import { prefetchCatalogShelf } from "@/views/catalogs/catalog-shelf";
 import { prefetchDiscoverPage } from "@/views/discover/discover-queries";
 import { buildMovieHero, movieSpecs } from "@/views/movies/movie-specs";
 import { buildShowHero } from "@/views/shows/hero-curation";
@@ -28,23 +26,6 @@ export function preloadNavPage(
 ): void {
   if (view === "discover") {
     if (settings) prefetchDiscoverPage(queryClient, settings);
-    return;
-  }
-  if (view === "catalogs") {
-    void queryClient
-      .prefetchQuery({
-        queryKey: queryKeys.catalog.list(authKey),
-        queryFn: () => listBrowseCatalogs(authKey),
-        staleTime: 5 * 60_000,
-      })
-      .then(() => {
-        const list = queryClient.getQueryData<Awaited<ReturnType<typeof listBrowseCatalogs>>>(
-          queryKeys.catalog.list(authKey),
-        );
-        if (!list?.length) return;
-        for (const c of list.slice(0, PRELOAD_LIMIT)) prefetchCatalogShelf(queryClient, c);
-      })
-      .catch(() => {});
     return;
   }
   if (view === "addons") {
@@ -81,7 +62,7 @@ export function preloadNavPage(
   }
 }
 
-const WARM_VIEWS = ["discover", "anime", "catalogs", "movies", "shows", "kids"] as const;
+const WARM_VIEWS = ["discover", "anime", "movies", "shows", "kids"] as const;
 
 /** Idle warmup so the main catalog routes paint from cache on first open. */
 export function useIdlePagePrefetch() {

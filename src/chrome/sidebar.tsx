@@ -19,7 +19,6 @@ import { NAV_ITEMS, applyNavCustomization, type NavItem } from "@/chrome/nav-ite
 const PRIMARY_IDS = new Set([
   "home",
   "discover",
-  "catalogs",
   "movies",
   "shows",
   "vod",
