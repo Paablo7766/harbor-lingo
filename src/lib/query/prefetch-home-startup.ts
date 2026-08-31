@@ -32,6 +32,15 @@ let cachedResult: HomeStartupPrefetchResult | null = null;
 let cachedKey: string | null = null;
 let inflight: Promise<HomeStartupPrefetchResult> | null = null;
 let inflightKey: string | null = null;
+let addonCatalogPrefetchInflight: Promise<void> | null = null;
+let addonCatalogPrefetchKey: string | null = null;
+
+function addonCatalogPrefetchSessionKey(
+  authKey: string | null,
+  homeMode: Settings["homeMode"],
+): string {
+  return `${authKey ?? "anon"}|${homeMode}`;
+}
 
 export function takeHomeStartupPrefetch(
   settings: Settings,
@@ -83,6 +92,49 @@ function prefetchAddonCatalog(
   });
 }
 
+/** Idempotent addon-catalog warmup — survives splash timeout and settings-key churn. */
+function ensureAddonCatalogPrefetch(
+  queryClient: QueryClient,
+  authKey: string | null,
+  homeMode: Settings["homeMode"],
+): Promise<void> {
+  const key = addonCatalogPrefetchSessionKey(authKey, homeMode);
+  if (addonCatalogPrefetchInflight && addonCatalogPrefetchKey === key) {
+    return addonCatalogPrefetchInflight;
+  }
+
+  console.time("[harbor:splash] prefetchAddonRows:all");
+  addonCatalogPrefetchKey = key;
+  addonCatalogPrefetchInflight = (async () => {
+    const addons = await gatherCatalogAddons(authKey);
+    const descriptors = listAddonCatalogDescriptors(addons).slice(0, INITIAL_VISIBLE_ROWS);
+    if (descriptors.length === 0) return;
+
+    const prefetches = descriptors.map((desc) => prefetchAddonCatalog(queryClient, authKey, desc));
+    const minCount = Math.min(MIN_SPLASH_ADDON_ROWS, descriptors.length);
+
+    if (homeMode === "classic") {
+      console.time("[harbor:splash] prefetchAddonRows:min");
+      await Promise.all(prefetches.slice(0, minCount)).catch((err) => {
+        console.error("[harbor:splash] prefetchAddonRows:min:error", err);
+      });
+      console.timeEnd("[harbor:splash] prefetchAddonRows:min");
+    }
+
+    await Promise.all(prefetches).catch((err) => {
+      console.error("[harbor:splash] prefetchAddonRows:bg:error", err);
+    });
+  })().finally(() => {
+    console.timeEnd("[harbor:splash] prefetchAddonRows:all");
+    if (addonCatalogPrefetchKey === key) {
+      addonCatalogPrefetchInflight = null;
+      addonCatalogPrefetchKey = null;
+    }
+  });
+
+  return addonCatalogPrefetchInflight;
+}
+
 /**
  * Starts prefetch for all above-the-fold addon catalogs. Resolves once the
  * minimum subset needed to dismiss the splash is ready; remaining prefetches
@@ -93,32 +145,10 @@ async function prefetchInitialAddonRows(
   authKey: string | null,
   homeMode: Settings["homeMode"],
 ): Promise<void> {
-  console.time("[harbor:splash] prefetchAddonRows:all");
-  const addons = await gatherCatalogAddons(authKey);
-  const descriptors = listAddonCatalogDescriptors(addons).slice(0, INITIAL_VISIBLE_ROWS);
-  if (descriptors.length === 0) {
-    console.timeEnd("[harbor:splash] prefetchAddonRows:all");
-    return;
-  }
-
-  const prefetches = descriptors.map((desc) => prefetchAddonCatalog(queryClient, authKey, desc));
-  const minCount = Math.min(MIN_SPLASH_ADDON_ROWS, descriptors.length);
-
+  const inflight = ensureAddonCatalogPrefetch(queryClient, authKey, homeMode);
   if (homeMode === "classic") {
-    console.time("[harbor:splash] prefetchAddonRows:min");
-    await Promise.all(prefetches.slice(0, minCount)).catch((err) => {
-      console.error("[harbor:splash] prefetchAddonRows:min:error", err);
-    });
-    console.timeEnd("[harbor:splash] prefetchAddonRows:min");
+    await inflight;
   }
-
-  void Promise.all(prefetches)
-    .catch((err) => {
-      console.error("[harbor:splash] prefetchAddonRows:bg:error", err);
-    })
-    .finally(() => {
-      console.timeEnd("[harbor:splash] prefetchAddonRows:all");
-    });
 }
 
 function runHomeStartupPrefetch(
@@ -136,7 +166,7 @@ function runHomeStartupPrefetch(
 
   console.time("[harbor:splash] ensureHomeStartupMinimumPrefetch");
   inflightKey = key;
-  inflight = (async () => {
+  const run = (async (): Promise<HomeStartupPrefetchResult> => {
     try {
       const [core] = await Promise.all([
         prefetchCoreRows(settings),
@@ -147,15 +177,14 @@ function runHomeStartupPrefetch(
       return core;
     } finally {
       console.timeEnd("[harbor:splash] ensureHomeStartupMinimumPrefetch");
+      if (inflightKey === key) {
+        inflight = null;
+        inflightKey = null;
+      }
     }
   })();
-
-  return inflight.finally(() => {
-    if (inflightKey === key) {
-      inflight = null;
-      inflightKey = null;
-    }
-  });
+  inflight = run;
+  return run;
 }
 
 /** Resolves once above-the-fold Home content is warm enough to dismiss the splash. */

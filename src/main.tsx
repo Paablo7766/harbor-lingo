@@ -11,7 +11,7 @@ import { RemoteApp } from "@/views/remote-app";
 import "@/index.css";
 
 const MIN_SPLASH_MS = 600;
-const MAX_SPLASH_MS = 4000;
+const MAX_SPLASH_MS = 5500;
 const FADE_MS = 300;
 
 function detectRemoteMode(): boolean {
