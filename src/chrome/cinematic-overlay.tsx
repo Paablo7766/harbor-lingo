@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
-import { HarborMark } from "@/components/icons/harbor-mark";
+import { HarborLogoMark } from "@/components/harbor-logo";
 import { RecordingPill } from "@/chrome/recording-pill";
 import { TogetherButton } from "@/chrome/topbar";
 import { useT } from "@/lib/i18n";
@@ -28,7 +28,6 @@ export function CinematicOverlay() {
 
   const themePreset =
     settings.theme.preset !== "custom" ? getThemeById(settings.theme.preset) : null;
-  const customMark = themePreset?.logo?.mark ?? null;
 
   const navigate = (item: NavItem) => {
     if (item.parentalKey && locked && hiddenTabs[item.parentalKey]) {
@@ -94,11 +93,7 @@ export function CinematicOverlay() {
             className="flex shrink-0 items-center gap-2 text-ink"
             aria-label={t("chrome.harborHome")}
           >
-            {customMark ? (
-              <img src={customMark} alt="" draggable={false} className="h-7 w-7 object-contain" />
-            ) : (
-              <HarborMark className="h-7 w-7" />
-            )}
+            <HarborLogoMark className="h-7 w-7" />
             {themePreset?.id === "crunch" && (
               <span className="font-display text-[22px] font-bold leading-none text-ink">
                 Harbor

@@ -21,6 +21,7 @@ export const DEFAULT: Settings = {
   omdbKey: "",
   rpdbKey: "",
   imdbApiFallback: true,
+  harborImdbRatings: false,
   fanartKey: "",
   tvdbKey: "",
   rdKey: "",

@@ -137,7 +137,7 @@ export const PickCard = memo(function PickCard({
   const [harborRating, setHarborRating] = useState<string | undefined>();
   useEffect(() => {
     setHarborRating(undefined);
-    if (!ratingTt || !ratingTt.startsWith("tt")) return;
+    if (!settings.harborImdbRatings || !ratingTt || !ratingTt.startsWith("tt")) return;
     let cancelled = false;
     harborImdbTitle(ratingTt)
       .then((r) => {
@@ -147,7 +147,7 @@ export const PickCard = memo(function PickCard({
     return () => {
       cancelled = true;
     };
-  }, [ratingTt]);
+  }, [ratingTt, settings.harborImdbRatings]);
   const mediaKind = meta.type === "series" ? "show" : "movie";
   const wantMdblist =
     settings.showPopcornBadge ||

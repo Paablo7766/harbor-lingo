@@ -1,6 +1,7 @@
 import { Lock } from "lucide-react";
 import { useState } from "react";
-import { HarborMark } from "@/components/icons/harbor-mark";
+import { HarborLogoMark, HarborLogoWordmark } from "@/components/harbor-logo";
+import { useHarborLogo } from "@/lib/harbor-logo";
 import { NAV_ITEMS, applyNavCustomization, type NavItem } from "@/chrome/nav-items";
 import { ProfileChip } from "@/chrome/sidebar/profile-chip";
 import { CollapseToggle } from "@/chrome/sidebar/collapse-toggle";
@@ -20,6 +21,7 @@ export function DraculaSidebar() {
   const t = useT();
   const collapsed = settings.sidebarCollapsed;
   const [pinFor, setPinFor] = useState<View | null>(null);
+  const { wordmark: customWordmark } = useHarborLogo();
 
   const items = applyNavCustomization(NAV_ITEMS, settings.navCustomization);
   const primary = items.filter((i) => PRIMARY_IDS.has(i.id));
@@ -83,22 +85,28 @@ export function DraculaSidebar() {
               aria-label={t("chrome.harborHome")}
               className="flex items-center gap-2 text-ink"
             >
-              <HarborMark className="harbor-dracula-moon h-7 w-7 shrink-0 text-accent drop-shadow-[0_0_10px_var(--color-accent-soft)] lg:h-[26px] lg:w-[26px]" />
-              {!collapsed && (
-                <span
-                  className="hidden text-[40px] font-medium leading-none tracking-tight lg:inline"
-                  style={{ fontFamily: "var(--font-display)", transform: "translateY(1px)" }}
-                >
-                  Harb
+              <HarborLogoMark
+                className="h-7 w-7 shrink-0 drop-shadow-[0_0_10px_var(--color-accent-soft)] lg:h-[26px] lg:w-[26px]"
+                fallbackClassName="harbor-dracula-moon h-7 w-7 shrink-0 text-accent drop-shadow-[0_0_10px_var(--color-accent-soft)] lg:h-[26px] lg:w-[26px]"
+              />
+              {!collapsed &&
+                (customWordmark ? (
+                  <HarborLogoWordmark className="hidden h-9 w-auto object-contain lg:inline" />
+                ) : (
                   <span
-                    className="inline-block"
-                    style={{ transform: "rotate(8deg)", transformOrigin: "50% 65%" }}
+                    className="hidden text-[40px] font-medium leading-none tracking-tight lg:inline"
+                    style={{ fontFamily: "var(--font-display)", transform: "translateY(1px)" }}
                   >
-                    o
+                    Harb
+                    <span
+                      className="inline-block"
+                      style={{ transform: "rotate(8deg)", transformOrigin: "50% 65%" }}
+                    >
+                      o
+                    </span>
+                    r
                   </span>
-                  r
-                </span>
-              )}
+                ))}
             </button>
           </div>
 

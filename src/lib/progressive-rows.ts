@@ -3,6 +3,8 @@ import type { RequestScheduler } from "./request-scheduler";
 export const CATALOG_REQUEST_TIMEOUT_MS = 5_000;
 /** First rows that fit on screen — fetched/mounted without idle deferral. */
 export const INITIAL_VISIBLE_ROWS = 5;
+/** Addon catalogs required before the startup splash may close (classic mode). */
+export const MIN_SPLASH_ADDON_ROWS = 1;
 const DEFERRED_STAGGER_MS = 40;
 
 export function upsertOrdered<T extends { key: string }>(

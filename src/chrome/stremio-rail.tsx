@@ -1,7 +1,7 @@
 import { Lock } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { CatAvatar } from "@/components/icons/cat-avatar";
-import { HarborMark } from "@/components/icons/harbor-mark";
+import { HarborLogoMark } from "@/components/harbor-logo";
 import { NAV_ITEMS, applyNavCustomization } from "@/chrome/nav-items";
 import { ParentalPinModal } from "@/components/parental-pin-modal";
 import { useAuth } from "@/lib/auth";
@@ -9,7 +9,6 @@ import { useT } from "@/lib/i18n";
 import { useParental } from "@/lib/parental";
 import { useProfiles } from "@/lib/profiles";
 import { useSettings } from "@/lib/settings";
-import { getThemeById } from "@/lib/theme";
 import { useView, type View } from "@/lib/view";
 
 export function StremioRail() {
@@ -18,10 +17,6 @@ export function StremioRail() {
   const { settings } = useSettings();
   const t = useT();
   const [pendingPin, setPendingPin] = useState<View | null>(null);
-
-  const themePreset =
-    settings.theme.preset !== "custom" ? getThemeById(settings.theme.preset) : null;
-  const customMark = themePreset?.logo?.mark ?? null;
 
   const items = applyNavCustomization(NAV_ITEMS, settings.navCustomization);
   const visible = items.filter((item) => {
@@ -45,11 +40,7 @@ export function StremioRail() {
           data-tauri-drag-region
           className="flex h-[5.5rem] shrink-0 items-center justify-center text-white/90"
         >
-          {customMark ? (
-            <img src={customMark} alt="" draggable={false} className="h-10 w-10 object-contain" />
-          ) : (
-            <HarborMark className="h-10 w-10" />
-          )}
+          <HarborLogoMark className="h-10 w-10" />
         </div>
         <nav className="flex flex-1 flex-col items-center gap-3 overflow-y-auto px-2 pb-3 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {visible.map((item) => {

@@ -104,14 +104,14 @@ if (import.meta.env.DEV && !isPip && !isModal && !isHdrOverlay && !isRemote) {
 
 function MainRoot() {
   const [showSplash, setShowSplash] = useState(true);
-  const [prefetchDone, setPrefetchDone] = useState(false);
+  const [minimumContentReady, setMinimumContentReady] = useState(false);
   const mountTimeRef = useRef(Date.now());
   const closedRef = useRef(false);
   const minTimerRef = useRef<number | null>(null);
 
-  const markPrefetchDone = useCallback(() => {
-    console.log("[harbor:splash] prefetchDone", new Date().toISOString());
-    setPrefetchDone(true);
+  const markMinimumContentReady = useCallback(() => {
+    console.log("[harbor:splash] minimumContentReady", new Date().toISOString());
+    setMinimumContentReady(true);
   }, []);
 
   const closeSplash = useCallback((reason: string) => {
@@ -129,15 +129,15 @@ function MainRoot() {
   }, []);
 
   const tryCloseSplash = useCallback(() => {
-    if (closedRef.current || !prefetchDone) return;
+    if (closedRef.current || !minimumContentReady) return;
     const elapsed = Date.now() - mountTimeRef.current;
     if (elapsed < MIN_SPLASH_MS) {
       if (minTimerRef.current != null) window.clearTimeout(minTimerRef.current);
       minTimerRef.current = window.setTimeout(() => tryCloseSplash(), MIN_SPLASH_MS - elapsed);
       return;
     }
-    closeSplash("prefetch-complete-and-min-elapsed");
-  }, [closeSplash, prefetchDone]);
+    closeSplash("minimum-content-ready-and-min-elapsed");
+  }, [closeSplash, minimumContentReady]);
 
   useEffect(() => {
     tryCloseSplash();
@@ -146,8 +146,8 @@ function MainRoot() {
   useEffect(() => {
     const maxTimer = window.setTimeout(() => {
       if (closedRef.current) return;
-      console.warn("[harbor:splash] max-timeout-4s forcing prefetchDone + close");
-      setPrefetchDone(true);
+      console.warn("[harbor:splash] max-timeout-4s forcing minimumContentReady + close");
+      setMinimumContentReady(true);
       closeSplash("max-timeout-4s");
     }, MAX_SPLASH_MS);
     return () => {
@@ -166,7 +166,7 @@ function MainRoot() {
         }}
         aria-hidden={showSplash}
       >
-        <App onReady={markPrefetchDone} />
+        <App onReady={markMinimumContentReady} />
       </div>
       <div
         className="absolute inset-0 z-10"

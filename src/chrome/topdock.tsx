@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LogOut, Pencil, Search, Settings as SettingsIcon, Users } from "lucide-react";
-import { HarborMark } from "@/components/icons/harbor-mark";
+import { HarborLogoMark } from "@/components/harbor-logo";
 import { CatAvatar } from "@/components/icons/cat-avatar";
 import { RecordingPill } from "@/chrome/recording-pill";
 import { TogetherButton } from "@/chrome/topbar";
@@ -38,8 +38,6 @@ export function TopDock() {
 
   const themePreset =
     settings.theme.preset !== "custom" ? getThemeById(settings.theme.preset) : null;
-
-  const customMark = themePreset?.logo?.mark ?? null;
 
   const navigate = (item: NavItem) => {
     if (item.parentalKey && locked && hiddenTabs[item.parentalKey]) {
@@ -163,11 +161,7 @@ export function TopDock() {
             "
               aria-label={t("chrome.harborHome")}
             >
-              {customMark ? (
-                <img src={customMark} alt="" draggable={false} className="h-7 w-7 object-contain" />
-              ) : (
-                <HarborMark className="h-7 w-7" />
-              )}
+              <HarborLogoMark className="h-7 w-7" />
 
               {themePreset?.id === "crunch" && (
                 <span className="font-display text-[22px] font-bold leading-none text-ink">
@@ -296,11 +290,7 @@ export function TopDock() {
             "
               aria-label={t("chrome.harborHome")}
             >
-              {customMark ? (
-                <img src={customMark} alt="" draggable={false} className="h-7 w-7 object-contain" />
-              ) : (
-                <HarborMark className="h-7 w-7" />
-              )}
+              <HarborLogoMark className="h-7 w-7" />
 
               {themePreset?.id === "crunch" && (
                 <span className="font-display text-[22px] font-bold leading-none text-ink">

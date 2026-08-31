@@ -34,3 +34,27 @@ export const TAB_ROUTE_LOADERS: Record<string, () => Promise<unknown>> = {
   "/addons": loadAddons,
   "/wrapped": loadWrapped,
 };
+
+const VIEW_TO_TAB_PATH: Record<string, string> = {
+  discover: "/discover",
+  shows: "/shows",
+  vod: "/vod",
+  library: "/library",
+  downloads: "/downloads",
+  addons: "/addons",
+  wrapped: "/wrapped",
+};
+
+const startedViewChunks = new Set<string>();
+
+/** Starts downloading a lazy tab view chunk (idempotent per view id). */
+export function preloadNavViewChunk(view: string): void {
+  const path = VIEW_TO_TAB_PATH[view];
+  if (!path) return;
+  const loader = TAB_ROUTE_LOADERS[path];
+  if (!loader || startedViewChunks.has(view)) return;
+  startedViewChunks.add(view);
+  void loader().catch(() => {
+    startedViewChunks.delete(view);
+  });
+}

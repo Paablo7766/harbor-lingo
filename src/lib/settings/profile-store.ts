@@ -13,9 +13,24 @@ export function sourceKeyFor(profileId: string, linked: boolean): string {
 }
 
 export function serializeSettings(settings: Settings): string {
-  const { backgroundImage: _drop, ...themeRest } = settings.theme;
-  void _drop;
-  return JSON.stringify({ ...settings, theme: themeRest });
+  const { backgroundImage: _bg, ...themeRest } = settings.theme;
+  void _bg;
+  const {
+    customLogoMark: _mark,
+    customLogoWordmark: _word,
+    customAppIcon: _app,
+    ...rest
+  } = settings;
+  void _mark;
+  void _word;
+  void _app;
+  return JSON.stringify({
+    ...rest,
+    customLogoMark: "",
+    customLogoWordmark: "",
+    customAppIcon: "",
+    theme: themeRest,
+  });
 }
 
 export function seedSharedFromLegacy(): void {

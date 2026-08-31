@@ -8,29 +8,27 @@ export function WindowControlButtons({ t }: { t: (key: string) => string }) {
   const { settings } = useSettings();
   const maxed = useMaximized();
   if (!IS_TAURI || settings.useNativeTitleBar) return null;
+  const base =
+    "flex h-6 w-6 items-center justify-center rounded-md text-white/55 transition-all duration-150 hover:bg-white/10 hover:text-white active:scale-90";
   return (
-    <div className="pointer-events-auto flex items-center gap-1">
-      <button
-        onClick={minimize}
-        aria-label={t("chrome.minimize")}
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/85 backdrop-blur-md transition-colors hover:bg-black/70 hover:text-white"
-      >
-        <Minus size={16} strokeWidth={2.2} />
+    <div className="pointer-events-auto flex items-center gap-0.5">
+      <button onClick={minimize} aria-label={t("chrome.minimize")} className={base}>
+        <Minus size={13} strokeWidth={2} />
       </button>
       <button
         onClick={toggleMaximize}
         aria-label={maxed ? t("chrome.restore") : t("chrome.maximize")}
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/85 backdrop-blur-md transition-colors hover:bg-black/70 hover:text-white"
+        className={base}
       >
-        {maxed ? <Copy size={13} strokeWidth={2.2} /> : <Square size={13} strokeWidth={2.2} />}
+        {maxed ? <Copy size={10} strokeWidth={2} /> : <Square size={10} strokeWidth={2} />}
       </button>
       <button
         onClick={close}
         data-harbor-window-close
         aria-label={t("common.close")}
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/85 backdrop-blur-md transition-colors hover:bg-danger hover:text-white"
+        className={`${base} hover:bg-danger/90`}
       >
-        <X size={16} strokeWidth={2.2} />
+        <X size={13} strokeWidth={2} />
       </button>
     </div>
   );

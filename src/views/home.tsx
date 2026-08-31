@@ -20,17 +20,10 @@ import { useCustomLists } from "@/lib/custom-lists";
 import { StreamingRail } from "@/components/streaming-rail";
 import { TopRankCard } from "@/components/top-rank-card";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  ensureHomeStartupPrefetch,
-  type HomeStartupPrefetchResult,
-} from "@/lib/query/prefetch-home-startup";
+import { ensureHomeStartupPrefetch } from "@/lib/query/prefetch-home-startup";
+import { useHomeAddonCatalogRows } from "@/lib/query/use-home-addon-catalog-rows";
 import { isAnimeRow } from "@/lib/is-anime-row";
-import {
-  hasTmdbProviderAddon,
-  loadAddonRowsProgressive,
-  userAddons,
-  type AddonRow,
-} from "@/lib/addons";
+import { hasTmdbProviderAddon, userAddons, type AddonRow } from "@/lib/addons";
 import { buildArabicHomeRows } from "@/lib/arabic/home-rows";
 import { useAuth } from "@/lib/auth";
 import { type Meta } from "@/lib/cinemeta";
@@ -91,6 +84,7 @@ import {
 } from "./home/home-rows";
 import type { HomeRow } from "./home/home-types";
 import { RowSkeleton } from "./home/row-skeleton";
+import { INITIAL_VISIBLE_ROWS } from "@/lib/progressive-rows";
 import { AddSourceModal } from "@/components/add-source-modal";
 import type { SourceRow } from "@/lib/custom-sources";
 
@@ -108,9 +102,18 @@ export function Home({ active = true }: { active?: boolean }) {
   const uiLang = useUiLanguage();
   const [editMode, setEditMode] = useState(false);
   const [isAddSourceModalOpen, setAddSourceModalOpen] = useState(false);
+  const [addonsTick, setAddonsTick] = useState(0);
   const [coreRows, setCoreRows] = useState<HomeRow[]>(() => hydrateInitialCoreRows(settings));
-  const [addonRows, setAddonRows] = useState<AddonRow[]>([]);
+  const [addonRowPatches, setAddonRowPatches] = useState<Record<string, AddonRow>>({});
   const dedupAddonRows = settings.homeMode === "classic" ? false : !settings.homeShowAllAddonRows;
+  const { addonRows: fetchedAddonRows, pendingDescriptors } = useHomeAddonCatalogRows(authKey, {
+    dedup: dedupAddonRows,
+    addonsTick,
+  });
+  const addonRows = useMemo(
+    () => fetchedAddonRows.map((row) => addonRowPatches[row.key] ?? row),
+    [addonRowPatches, fetchedAddonRows],
+  );
   const filteredAddonRows = useMemo(() => {
     if (settings.homeMode === "classic") return addonRows;
     return addonRows.filter((a) => !isAnimeRow(a) && !isStreamingServiceRow(a.name));
@@ -140,16 +143,22 @@ export function Home({ active = true }: { active?: boolean }) {
   const [items, setItems] = useState<LibraryItem[]>([]);
   const cwVersion = useCwDismissVersion();
   const [tmdbProvidedByAddon, setTmdbProvidedByAddon] = useState(false);
-  const [addonsTick, setAddonsTick] = useState(0);
   const { isConnected: traktConnected } = useTrakt();
   const { isConnected: simklConnected } = useSimkl();
   const { isConnected: anilistConnected } = useAnilist();
   const letterboxd = useLetterboxd();
   const rowsRef = useRef<HomeRow[]>([]);
+  const fetchedAddonRowsRef = useRef(fetchedAddonRows);
   const loadingRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
+  useEffect(() => {
+    fetchedAddonRowsRef.current = fetchedAddonRows;
+  }, [fetchedAddonRows]);
+  useEffect(() => {
+    setAddonRowPatches({});
+  }, [authKey, settings.homeMode, settings.homeShowAllAddonRows, addonsTick]);
 
   const loadMore = useCallback((rowKey: string) => {
     if (loadingRef.current.has(rowKey)) return;
@@ -176,21 +185,23 @@ export function Home({ active = true }: { active?: boolean }) {
             };
           }),
         );
-        setAddonRows((rs) =>
-          rs.map((r) => {
-            if (r.key !== rowKey) return r;
-            const ids = new Set(r.metas.map((m) => m.id));
-            const fresh = more.filter((m) => !ids.has(m.id));
-            const combined = [...r.metas, ...fresh];
-            const reachedCap = combined.length >= MAX_PER_ROW;
-            return {
-              ...r,
+        setAddonRowPatches((patches) => {
+          const base = patches[rowKey] ?? fetchedAddonRowsRef.current.find((r) => r.key === rowKey);
+          if (!base) return patches;
+          const ids = new Set(base.metas.map((m) => m.id));
+          const fresh = more.filter((m) => !ids.has(m.id));
+          const combined = [...base.metas, ...fresh];
+          const reachedCap = combined.length >= MAX_PER_ROW;
+          return {
+            ...patches,
+            [rowKey]: {
+              ...base,
               metas: reachedCap ? combined.slice(0, MAX_PER_ROW) : combined,
               page: next,
               hasMore: !reachedCap && fresh.length > 0,
-            };
-          }),
-        );
+            },
+          };
+        });
       })
       .catch(() => {})
       .finally(() => {
@@ -207,30 +218,14 @@ export function Home({ active = true }: { active?: boolean }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const isClassic = settings.homeMode === "classic";
-      const dedupRows = isClassic ? false : !settings.homeShowAllAddonRows;
-
-      let built: HomeStartupPrefetchResult = { coreRows: [], hero: [] };
-      if (!isClassic) {
-        built = await ensureHomeStartupPrefetch(queryClient, settings, authKey).catch(() => ({
-          coreRows: [] as HomeRow[],
-          hero: [] as Meta[],
-        }));
-      }
+      const built = await ensureHomeStartupPrefetch(queryClient, settings, authKey).catch(() => ({
+        coreRows: [] as HomeRow[],
+        hero: [] as Meta[],
+      }));
       if (cancelled) return;
       setCoreRows(built.coreRows);
       setHeroPool(built.hero);
       setHeroReady(true);
-
-      await loadAddonRowsProgressive(authKey, {
-        dedup: dedupRows,
-        queryClient,
-        onRows: (rows) => {
-          if (cancelled) return;
-          setAddonRows(rows);
-        },
-      }).catch(() => [] as AddonRow[]);
-      if (cancelled) return;
 
       if (authKey) {
         const installed = await userAddons(authKey).catch(() => []);
@@ -926,6 +921,18 @@ export function Home({ active = true }: { active?: boolean }) {
     [settings.tmdbKey, settings.streaming],
   );
 
+  const pendingAddonSkeletons = useMemo(
+    () => pendingDescriptors.slice(0, INITIAL_VISIBLE_ROWS),
+    [pendingDescriptors],
+  );
+  const showFullPageSkeletons =
+    rows.length === 0 &&
+    traktRows.length === 0 &&
+    simklRows.length === 0 &&
+    animeRows.length === 0 &&
+    arabicRows.length === 0 &&
+    pendingAddonSkeletons.length === 0;
+
   return (
     <main
       ref={scrollCb}
@@ -1076,32 +1083,33 @@ export function Home({ active = true }: { active?: boolean }) {
                 onToggleHidden={() => handleToggleHidden("collections")}
               />
             )}
-          {rows.length === 0 &&
-          traktRows.length === 0 &&
-          simklRows.length === 0 &&
-          animeRows.length === 0 &&
-          arabicRows.length === 0 ? (
+          {showFullPageSkeletons ? (
             Array.from({ length: 7 }).map((_, i) => <RowSkeleton key={`skel-${i}`} />)
           ) : (
-            <CustomizableRows
-              rows={editMode ? editRows : visibleRows}
-              editMode={editMode}
-              customization={homeRowsCustom}
-              orderKeys={orderKeys}
-              onMove={handleMove}
-              onToggleHidden={handleToggleHidden}
-              onRename={handleRename}
-              onToggleNumerals={handleToggleNumerals}
-              onToggleHero={handleToggleHero}
-              onLoadMore={loadMore}
-              onDeleteCustomSource={handleDeleteCustomSource}
-              onEditFolderImages={handleEditFolderImages}
-              hideWatched={settings.hideWatchedInCatalogs}
-              watchedSet={traktWatched}
-              localWatched={localWatched}
-              stremioWatched={stremioWatchedIds}
-              homeLanguages={settings.homeLanguages}
-            />
+            <>
+              <CustomizableRows
+                rows={editMode ? editRows : visibleRows}
+                editMode={editMode}
+                customization={homeRowsCustom}
+                orderKeys={orderKeys}
+                onMove={handleMove}
+                onToggleHidden={handleToggleHidden}
+                onRename={handleRename}
+                onToggleNumerals={handleToggleNumerals}
+                onToggleHero={handleToggleHero}
+                onLoadMore={loadMore}
+                onDeleteCustomSource={handleDeleteCustomSource}
+                onEditFolderImages={handleEditFolderImages}
+                hideWatched={settings.hideWatchedInCatalogs}
+                watchedSet={traktWatched}
+                localWatched={localWatched}
+                stremioWatched={stremioWatchedIds}
+                homeLanguages={settings.homeLanguages}
+              />
+              {pendingAddonSkeletons.map((desc) => (
+                <RowSkeleton key={`addon-pending-${desc.rowKey}`} />
+              ))}
+            </>
           )}
         </div>
       </ScrollRootContext.Provider>

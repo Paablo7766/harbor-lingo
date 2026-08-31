@@ -17,8 +17,10 @@ import { Topbar } from "@/chrome/topbar";
 import { startMaintenance, subscribeMemoryPressure } from "@/lib/maintenance";
 import { MiddleClickScroll } from "@/lib/use-middle-click-scroll";
 import { exitWindowFullscreenOnPlayerClose, toggleWindowFullscreen } from "@/lib/fullscreen-state";
+import { flushSettingsFileNow } from "@/lib/settings/file-store";
 import { flushCloudSync } from "@/views/player/hooks/use-stremio-sync";
-import { ViewRouteFallback } from "@/components/view-route-fallback";
+import { RouteLoadingScreen } from "@/chrome/route-loading-screen";
+import { RouteMinimumContentGate } from "@/chrome/route-minimum-content-gate";
 import { PlayerRouteFallback } from "@/views/player/player-route-fallback";
 import { setNativeMemoryActive } from "@/lib/native-memory";
 import { useOverlayPinned } from "@/lib/overlay-pin";
@@ -99,9 +101,11 @@ import {
   onOpenLocalFile,
   startDeepLinkBridge,
 } from "@/lib/deep-link";
-import { HarborQueryProvider } from "@/lib/query";
+import { HarborQueryProvider, useIdlePagePrefetch } from "@/lib/query";
 import { HomeStartupPrefetch } from "@/components/home-startup-prefetch";
 import { HarborRouterProvider, ViewRouterSync } from "@/router";
+import { useQueryClient } from "@tanstack/react-query";
+import { ensureDiscoverMinimumPrefetch } from "@/views/discover/discover-queries";
 import {
   loadAddons,
   loadAnimeAward,
@@ -155,7 +159,7 @@ const OnboardingModal = lazy(() =>
   importOnboarding().then((m) => ({ default: m.OnboardingModal })),
 );
 
-const viewSuspenseFallback = <ViewRouteFallback />;
+const viewSuspenseFallback = <RouteLoadingScreen />;
 
 const KEEP_ALIVE_MS = 1500;
 const IDLE_EVICT_MS = 10 * 1000;
@@ -410,6 +414,7 @@ function parseDeepLinkEpisode(videoId?: string): { season: number; episode: numb
 }
 
 function Shell() {
+  useIdlePagePrefetch();
   const {
     topKind,
     service,
@@ -438,6 +443,19 @@ function Shell() {
     chromeHidden,
   } = useView();
   const { settings, update } = useSettings();
+  const queryClient = useQueryClient();
+  const discoverWarmup = useCallback(
+    () => Promise.all([ensureDiscoverMinimumPrefetch(queryClient, settings), loadDiscover()]),
+    [
+      queryClient,
+      settings.tmdbKey,
+      settings.region,
+      settings.tmdbLanguage,
+      settings.feedLocaleBias,
+      settings.preferredLanguages,
+      settings.streaming,
+    ],
+  );
   const { setOpen: setSearchOpen, open: searchOpen } = useSearch();
   const uiScaleRef = useRef(settings.uiScale);
   const { activeProfile } = useProfiles();
@@ -707,6 +725,7 @@ function Shell() {
     let cancelled = false;
     void import("@tauri-apps/api/event").then(({ listen }) =>
       listen("harbor://app-closing", async () => {
+        await flushSettingsFileNow().catch(() => {});
         await flushCloudSync().catch(() => {});
         const { invoke } = await import("@tauri-apps/api/core");
         await invoke("harbor_flush_done").catch(() => {});
@@ -903,9 +922,9 @@ function Shell() {
         )}
         {discoverAlive && (
           <div className={layer(discoverTop)}>
-            <Suspense fallback={viewSuspenseFallback}>
+            <RouteMinimumContentGate active={discoverTop} warmup={discoverWarmup}>
               <Discover active={discoverTop} />
-            </Suspense>
+            </RouteMinimumContentGate>
           </div>
         )}
         {addonsAlive && (

@@ -1,7 +1,7 @@
 import { ArrowLeft, LogOut, Pencil, Search, Settings as SettingsIcon, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { CatAvatar } from "@/components/icons/cat-avatar";
-import { HarborMark } from "@/components/icons/harbor-mark";
+import { HarborLogoMark } from "@/components/harbor-logo";
 import { TvModalClose } from "@/components/tv-modal-close";
 import { RecordingPill } from "@/chrome/recording-pill";
 import { TogetherButton } from "@/chrome/topbar";
@@ -11,7 +11,6 @@ import { useTvFocusScope } from "@/lib/keyboard-navigation";
 import { useProfiles } from "@/lib/profiles";
 import { useSearch } from "@/lib/search-context";
 import { useSettings } from "@/lib/settings";
-import { getThemeById } from "@/lib/theme";
 import { useView } from "@/lib/view";
 import { close, minimize, toggleMaximize } from "@/lib/window";
 
@@ -23,9 +22,6 @@ export function FloatingTop() {
   const { setOpen: setSearchOpen } = useSearch();
   const t = useT();
 
-  const themePreset =
-    settings.theme.preset !== "custom" ? getThemeById(settings.theme.preset) : null;
-  const customMark = themePreset?.logo?.mark ?? null;
   const showBack = canGoBack && topKind !== "home" && topKind !== "picker";
   const onBack = () => (topKind === "picker" ? exitPlayback() : goBack());
 
@@ -41,11 +37,7 @@ export function FloatingTop() {
         className="harbor-minui-mark flex shrink-0 items-center gap-2 rounded-full px-1.5 py-1 text-ink transition-colors"
         aria-label={t("chrome.harborHome")}
       >
-        {customMark ? (
-          <img src={customMark} alt="" draggable={false} className="h-8 w-8 object-contain" />
-        ) : (
-          <HarborMark className="h-8 w-8" />
-        )}
+        <HarborLogoMark className="h-8 w-8" />
       </button>
       {showBack && (
         <button
@@ -66,17 +58,33 @@ export function FloatingTop() {
           <Search size={16} strokeWidth={2.2} />
           <span className="hidden sm:inline">{t("common.search")}</span>
         </PillBtn>
-        <ProfilePill onOpenSettings={() => setView("settings")} settingsActive={view === "settings"} />
+        <ProfilePill
+          onOpenSettings={() => setView("settings")}
+          settingsActive={view === "settings"}
+        />
         {IS_TAURI && !settings.useNativeTitleBar && (
           <div className="ms-1 flex items-center gap-1">
             <WinBtn onClick={minimize} label={t("chrome.minimize")}>
               <path d="M3 6.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </WinBtn>
             <WinBtn onClick={toggleMaximize} label={t("chrome.maximize")}>
-              <rect x="3" y="3" width="7" height="7" stroke="currentColor" strokeWidth="1.5" rx="1.5" />
+              <rect
+                x="3"
+                y="3"
+                width="7"
+                height="7"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                rx="1.5"
+              />
             </WinBtn>
             <WinBtn onClick={close} label={t("common.close")} danger>
-              <path d="M3.5 3.5l6 6M9.5 3.5l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path
+                d="M3.5 3.5l6 6M9.5 3.5l-6 6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
             </WinBtn>
           </div>
         )}
@@ -175,7 +183,12 @@ function ProfilePill({
           style={{ background: color, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4)" }}
         >
           {harborAvatar ? (
-            <img src={harborAvatar} alt="" className="h-full w-full object-cover" draggable={false} />
+            <img
+              src={harborAvatar}
+              alt=""
+              className="h-full w-full object-cover"
+              draggable={false}
+            />
           ) : (
             <CatAvatar className="h-full w-full" />
           )}

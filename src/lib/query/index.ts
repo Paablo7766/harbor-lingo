@@ -7,6 +7,16 @@ export {
   logHomeAddonQueryKey,
 } from "./home-addon-catalog-query";
 export { queryKeys } from "./keys";
-export { ensureHomeStartupPrefetch, takeHomeStartupPrefetch } from "./prefetch-home-startup";
+export {
+  ensureHomeStartupMinimumPrefetch,
+  ensureHomeStartupPrefetch,
+  takeHomeStartupPrefetch,
+} from "./prefetch-home-startup";
+export { useHomeAddonCatalogRows } from "./use-home-addon-catalog-rows";
 export { HarborQueryProvider } from "./provider";
-export { preloadNavPage, useIdlePagePrefetch } from "./use-idle-page-prefetch";
+export {
+  preloadNavPage,
+  useDebouncedNavIntent,
+  useIdlePagePrefetch,
+  useNavIntentPreload,
+} from "./use-idle-page-prefetch";

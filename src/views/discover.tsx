@@ -231,28 +231,39 @@ export function Discover({ active = true }: { active?: boolean }) {
         return next.length === prev.length ? prev : next;
       });
     };
+    // Store notify() can run during another component's render (e.g. ViewProvider
+    // trackEvent inside setNavStack). Defer setState so Discover updates after.
+    const deferStoreUpdate = (fn: () => void) => {
+      queueMicrotask(fn);
+    };
     const offTaste = subscribeTaste(() => {
       if (!activeRef.current) return;
-      rescore();
-      bump();
+      deferStoreUpdate(() => {
+        rescore();
+        bump();
+      });
     });
     const offPrefs = subscribePrefs(() => {
       if (!activeRef.current) return;
-      rescore();
-      const blocked = new Set<string>([...getDownvotedIds(), ...getUpvotedIds()]);
-      setQueue((prev) => prev.filter((it) => !blocked.has(it.meta.id)));
-      setCriticsPickList((prev) => prev.filter((m) => !blocked.has(m.id)));
-      bump();
+      deferStoreUpdate(() => {
+        rescore();
+        const blocked = new Set<string>([...getDownvotedIds(), ...getUpvotedIds()]);
+        setQueue((prev) => prev.filter((it) => !blocked.has(it.meta.id)));
+        setCriticsPickList((prev) => prev.filter((m) => !blocked.has(m.id)));
+        bump();
+      });
     });
     const offPlayback = subscribePlayback(() => {
       if (!activeRef.current) return;
-      rescore();
-      dropWatchedRails();
-      bump();
+      deferStoreUpdate(() => {
+        rescore();
+        dropWatchedRails();
+        bump();
+      });
     });
     const offExternal = subscribeExternalWatched(() => {
       if (!activeRef.current) return;
-      rescore();
+      deferStoreUpdate(rescore);
     });
     return () => {
       clearTimeout(timer);

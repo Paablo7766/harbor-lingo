@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { LogIn, LogOut, Pencil, Search, Settings as SettingsLucide, Users } from "lucide-react";
 import { createPortal } from "react-dom";
-import { HarborMark } from "@/components/icons/harbor-mark";
+import { HarborLogoMark } from "@/components/harbor-logo";
 import { CatAvatar } from "@/components/icons/cat-avatar";
 import { ThreeLiquidGlassSurface } from "@/components/ThreeLiquidGlassSurface";
 import { AuthModal } from "@/components/auth-modal";
@@ -20,7 +20,6 @@ import {
   shouldHandleGlobalKeyboardEvent,
 } from "@/lib/hotkeys";
 import { useSettings } from "@/lib/settings";
-import { getThemeById } from "@/lib/theme";
 import { useParental } from "@/lib/parental";
 import { useView, type View } from "@/lib/view";
 import { close, minimize, toggleMaximize, useMaximized } from "@/lib/window";
@@ -38,10 +37,6 @@ export function RoyalTopbar() {
   const t = useT();
   const [pinFor, setPinFor] = useState<View | null>(null);
   const maxed = useMaximized();
-
-  const themePreset =
-    settings.theme.preset !== "custom" ? getThemeById(settings.theme.preset) : null;
-  const customMark = themePreset?.logo?.mark ?? null;
 
   const items = applyNavCustomization(NAV_ITEMS, settings.navCustomization);
 
@@ -129,11 +124,7 @@ export function RoyalTopbar() {
               className="flex shrink-0 items-center gap-2.5 text-ink"
               aria-label={t("chrome.harborHome")}
             >
-              {customMark ? (
-                <img src={customMark} alt="" draggable={false} className="h-7 w-7 object-contain" />
-              ) : (
-                <HarborMark className="h-7 w-7" />
-              )}
+              <HarborLogoMark className="h-7 w-7" />
               <span
                 className="hidden text-[18px] font-medium uppercase leading-none tracking-[0.14em] text-ink lg:inline"
                 style={{ fontFamily: "var(--font-display)" }}

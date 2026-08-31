@@ -74,6 +74,7 @@ export type Settings = {
   omdbKey: string;
   rpdbKey: string;
   imdbApiFallback: boolean;
+  harborImdbRatings: boolean;
   fanartKey: string;
   tvdbKey: string;
   rdKey: string;

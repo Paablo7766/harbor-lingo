@@ -1,6 +1,7 @@
 import { Lock } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { HarborMark } from "@/components/icons/harbor-mark";
+import { HarborLogoMark, HarborLogoWordmark } from "@/components/harbor-logo";
+import { useHarborLogo } from "@/lib/harbor-logo";
 import { ProfileChip } from "@/chrome/sidebar/profile-chip";
 import { CollapseToggle } from "@/chrome/sidebar/collapse-toggle";
 import { ParentalPinModal } from "@/components/parental-pin-modal";
@@ -24,6 +25,7 @@ export function ForestSidebar() {
   const t = useT();
   const collapsed = settings.sidebarCollapsed;
   const [pinFor, setPinFor] = useState<View | null>(null);
+  const { wordmark: customWordmark } = useHarborLogo();
 
   const isVisible = (item: NavItem) => {
     if (item.view === "vod" && !settings.showPlaylistsTab) return false;
@@ -81,15 +83,18 @@ export function ForestSidebar() {
               aria-label={t("chrome.harborHome")}
               className="flex items-center gap-2.5 text-ink"
             >
-              <HarborMark className="h-[26px] w-[26px] shrink-0 drop-shadow-[0_0_11px_var(--color-accent-soft)]" />
-              {!collapsed && (
-                <span
-                  className="hidden text-[27px] font-medium leading-none lg:inline"
-                  style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.2px" }}
-                >
-                  Harbor
-                </span>
-              )}
+              <HarborLogoMark className="h-[26px] w-[26px] shrink-0 drop-shadow-[0_0_11px_var(--color-accent-soft)]" />
+              {!collapsed &&
+                (customWordmark ? (
+                  <HarborLogoWordmark className="hidden h-7 w-auto object-contain lg:inline" />
+                ) : (
+                  <span
+                    className="hidden text-[27px] font-medium leading-none lg:inline"
+                    style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.2px" }}
+                  >
+                    Harbor
+                  </span>
+                ))}
             </button>
           </div>
 

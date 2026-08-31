@@ -3,9 +3,10 @@ import {
   gatherCatalogAddons,
   listAddonCatalogDescriptors,
   seedAddonCatalogRowCache,
+  type AddonCatalogDescriptor,
 } from "@/lib/addons";
 import type { Meta } from "@/lib/cinemeta";
-import { INITIAL_VISIBLE_ROWS } from "@/lib/progressive-rows";
+import { INITIAL_VISIBLE_ROWS, MIN_SPLASH_ADDON_ROWS } from "@/lib/progressive-rows";
 import type { Settings } from "@/lib/settings/types";
 import { buildCinemetaRows, buildTmdbRows } from "@/views/home/home-rows";
 import type { HomeRow } from "@/views/home/home-types";
@@ -67,37 +68,60 @@ async function prefetchCoreRows(settings: Settings): Promise<HomeStartupPrefetch
   }
 }
 
+function prefetchAddonCatalog(
+  queryClient: QueryClient,
+  authKey: string | null,
+  desc: AddonCatalogDescriptor,
+): Promise<void> {
+  const opts = homeAddonCatalogQueryOptions(authKey, desc);
+  logHomeAddonQueryKey("splash-prefetch", desc.rowKey, opts.queryKey);
+  const timerLabel = `[harbor:splash] prefetchQuery:${desc.rowKey}`;
+  console.time(timerLabel);
+  seedAddonCatalogRowCache(queryClient, authKey, desc);
+  return queryClient.prefetchQuery(opts).finally(() => {
+    console.timeEnd(timerLabel);
+  });
+}
+
+/**
+ * Starts prefetch for all above-the-fold addon catalogs. Resolves once the
+ * minimum subset needed to dismiss the splash is ready; remaining prefetches
+ * keep running in the background.
+ */
 async function prefetchInitialAddonRows(
   queryClient: QueryClient,
-  settings: Settings,
   authKey: string | null,
+  homeMode: Settings["homeMode"],
 ): Promise<void> {
-  if (settings.homeMode === "classic") return;
-
   console.time("[harbor:splash] prefetchAddonRows:all");
   const addons = await gatherCatalogAddons(authKey);
   const descriptors = listAddonCatalogDescriptors(addons).slice(0, INITIAL_VISIBLE_ROWS);
+  if (descriptors.length === 0) {
+    console.timeEnd("[harbor:splash] prefetchAddonRows:all");
+    return;
+  }
 
-  await Promise.all(
-    descriptors.map((desc) => {
-      const opts = homeAddonCatalogQueryOptions(authKey, desc);
-      logHomeAddonQueryKey("splash-prefetch", desc.rowKey, opts.queryKey);
-      const timerLabel = `[harbor:splash] prefetchQuery:${desc.rowKey}`;
-      console.time(timerLabel);
-      seedAddonCatalogRowCache(queryClient, authKey, desc);
-      return queryClient.prefetchQuery(opts).finally(() => {
-        console.timeEnd(timerLabel);
-      });
-    }),
-  ).catch((err) => {
-    console.error("[harbor:splash] prefetchAddonRows:error", err);
-  });
+  const prefetches = descriptors.map((desc) => prefetchAddonCatalog(queryClient, authKey, desc));
+  const minCount = Math.min(MIN_SPLASH_ADDON_ROWS, descriptors.length);
 
-  console.timeEnd("[harbor:splash] prefetchAddonRows:all");
+  if (homeMode === "classic") {
+    console.time("[harbor:splash] prefetchAddonRows:min");
+    await Promise.all(prefetches.slice(0, minCount)).catch((err) => {
+      console.error("[harbor:splash] prefetchAddonRows:min:error", err);
+    });
+    console.timeEnd("[harbor:splash] prefetchAddonRows:min");
+  }
+
+  void Promise.all(prefetches)
+    .catch((err) => {
+      console.error("[harbor:splash] prefetchAddonRows:bg:error", err);
+    })
+    .finally(() => {
+      console.timeEnd("[harbor:splash] prefetchAddonRows:all");
+    });
 }
 
-/** Idempotent startup warmup shared by the splash screen and Home. */
-export function ensureHomeStartupPrefetch(
+function runHomeStartupPrefetch(
   queryClient: QueryClient,
   settings: Settings,
   authKey: string | null,
@@ -110,19 +134,19 @@ export function ensureHomeStartupPrefetch(
     return inflight;
   }
 
-  console.time("[harbor:splash] ensureHomeStartupPrefetch");
+  console.time("[harbor:splash] ensureHomeStartupMinimumPrefetch");
   inflightKey = key;
   inflight = (async () => {
     try {
       const [core] = await Promise.all([
         prefetchCoreRows(settings),
-        prefetchInitialAddonRows(queryClient, settings, authKey),
+        prefetchInitialAddonRows(queryClient, authKey, settings.homeMode),
       ]);
       cachedResult = core;
       cachedKey = key;
       return core;
     } finally {
-      console.timeEnd("[harbor:splash] ensureHomeStartupPrefetch");
+      console.timeEnd("[harbor:splash] ensureHomeStartupMinimumPrefetch");
     }
   })();
 
@@ -132,4 +156,22 @@ export function ensureHomeStartupPrefetch(
       inflightKey = null;
     }
   });
+}
+
+/** Resolves once above-the-fold Home content is warm enough to dismiss the splash. */
+export function ensureHomeStartupMinimumPrefetch(
+  queryClient: QueryClient,
+  settings: Settings,
+  authKey: string | null,
+): Promise<HomeStartupPrefetchResult> {
+  return runHomeStartupPrefetch(queryClient, settings, authKey);
+}
+
+/** Idempotent startup warmup shared by the splash screen and Home. */
+export function ensureHomeStartupPrefetch(
+  queryClient: QueryClient,
+  settings: Settings,
+  authKey: string | null,
+): Promise<HomeStartupPrefetchResult> {
+  return ensureHomeStartupMinimumPrefetch(queryClient, settings, authKey);
 }

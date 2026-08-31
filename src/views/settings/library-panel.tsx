@@ -441,6 +441,15 @@ export function LibraryPanel({
           value={settings.imdbApiFallback}
           onChange={(v) => update({ imdbApiFallback: v })}
         />
+        <ToggleRow
+          label={t("Fetch IMDb ratings from Harbor")}
+          sub={t(
+            "Uses harbor.site for live IMDb scores on cards and detail pages. Off by default while the service is being stabilized.",
+          )}
+          leading={<ImdbBadge />}
+          value={settings.harborImdbRatings}
+          onChange={(v) => update({ harborImdbRatings: v })}
+        />
         <KeyField
           label={t("OMDb · Rotten Tomatoes scores")}
           placeholder={t("8-character key")}

@@ -359,7 +359,7 @@ export function DetailView({
   useEffect(() => {
     setHarborImdbRating(null);
     const tt = detail?.imdbId ?? (meta.id.startsWith("tt") ? meta.id : null);
-    if (!tt || !tt.startsWith("tt")) return;
+    if (!settings.harborImdbRatings || !tt || !tt.startsWith("tt")) return;
     let cancelled = false;
     harborImdbTitle(tt)
       .then((r) => {
@@ -369,7 +369,7 @@ export function DetailView({
     return () => {
       cancelled = true;
     };
-  }, [detail?.imdbId, meta.id]);
+  }, [detail?.imdbId, meta.id, settings.harborImdbRatings]);
   const addonNative = liveContext || isAddonNativeMeta(meta);
   const trailerCandidate = detail?.trailerCandidates?.[0] ?? meta.trailerStreams?.[0]?.ytId ?? null;
   const actionRowRef = useRef<HTMLDivElement | null>(null);

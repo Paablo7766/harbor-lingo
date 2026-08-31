@@ -12,14 +12,26 @@ import { applyTheme, isKnownPreset, nextColorTheme } from "@/lib/theme";
 import { applyAppIcon } from "@/lib/app-icon";
 import { getCustomThemes, subscribeCustomThemes } from "@/lib/custom-themes";
 import { loadBgImage, saveBgImage } from "@/lib/theme-storage";
+import {
+  hydrateLogosForSource,
+  saveAppIcon,
+  saveLogoMark,
+  saveLogoWordmark,
+} from "@/lib/logo-storage";
 import { effectiveTmdbLanguage, setTmdbLanguage } from "@/lib/providers/tmdb/tmdb-client";
 import { setPosterBaseUrl } from "@/lib/providers/rpdb";
 import { setMdblistBatchKey } from "@/lib/providers/mdblist-batch";
+import { setHarborImdbRatingsEnabled } from "@/lib/providers/harbor-imdb";
 import { setUiLanguage } from "@/lib/i18n";
 import { setSnapshotRetentionDays } from "@/lib/snapshots";
 import { makeSafeTauriUnlisten } from "@/lib/tauri-unlisten";
 import { STORAGE_KEY } from "./settings/defaults";
-import { readSettingsFile, writeSettingsFile } from "./settings/file-store";
+import {
+  bindSettingsFileFlush,
+  isTauriSettingsEnv,
+  readSettingsFile,
+  writeSettingsFile,
+} from "./settings/file-store";
 import { loadFontData, saveFontData } from "./font-storage";
 import {
   forkToProfile,
@@ -76,12 +88,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setUiLanguage(s.uiLanguage);
     return s;
   });
+  const [diskHydrated, setDiskHydrated] = useState(
+    () => !!localStorage.getItem(STORAGE_KEY) || !isTauriSettingsEnv,
+  );
   const settingsRef = useRef(settings);
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
 
   setTmdbLanguage(settings.tmdbLanguage);
+  setHarborImdbRatingsEnabled(settings.harborImdbRatings);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,17 +113,35 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (localStorage.getItem(STORAGE_KEY)) return;
     let cancelled = false;
+    const hasLocal = !!localStorage.getItem(STORAGE_KEY);
+
+    const finishHydration = () => {
+      if (!cancelled) setDiskHydrated(true);
+    };
+
+    if (hasLocal || !isTauriSettingsEnv) {
+      finishHydration();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     void readSettingsFile().then((raw) => {
-      if (cancelled || !raw || localStorage.getItem(STORAGE_KEY)) return;
-      try {
-        localStorage.setItem(STORAGE_KEY, raw);
-        seedSharedFromLegacy();
-        const restored = loadEffective(sourceRef.current.profileId, sourceRef.current.linked);
-        setUiLanguage(restored.uiLanguage);
-        setSettings(restored);
-      } catch {}
+      if (cancelled) return;
+      if (raw && !localStorage.getItem(STORAGE_KEY)) {
+        try {
+          const src = sourceRef.current;
+          localStorage.setItem(STORAGE_KEY, raw);
+          localStorage.setItem(sourceKeyFor(src.profileId, src.linked), raw);
+          seedSharedFromLegacy();
+          const restored = loadEffective(src.profileId, src.linked);
+          setUiLanguage(restored.uiLanguage);
+          settingsRef.current = restored;
+          setSettings(restored);
+        } catch {}
+      }
+      finishHydration();
     });
     return () => {
       cancelled = true;
@@ -122,25 +156,114 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     void saveBgImage(img);
   }, [settings.theme.backgroundImage]);
 
-  const fileTimerRef = useRef(0);
+  const lastSavedLogosRef = useRef({ mark: "", wordmark: "", appIcon: "" });
+
   useEffect(() => {
+    if (!diskHydrated) return;
+    let cancelled = false;
+    const src = sourceRef.current;
+    void hydrateLogosForSource(settingsRef.current, src.profileId, src.linked).then((merged) => {
+      if (cancelled) return;
+      const cur = settingsRef.current;
+      const final = {
+        ...merged,
+        customLogoMark: cur.customLogoMark || merged.customLogoMark,
+        customLogoWordmark: cur.customLogoWordmark || merged.customLogoWordmark,
+        customAppIcon: cur.customAppIcon || merged.customAppIcon,
+      };
+      lastSavedLogosRef.current = {
+        mark: final.customLogoMark,
+        wordmark: final.customLogoWordmark,
+        appIcon: final.customAppIcon,
+      };
+      settingsRef.current = final;
+      setSettings(final);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [diskHydrated]);
+
+  useEffect(() => {
+    if (!diskHydrated) return;
+    const src = sourceRef.current;
+    const { customLogoMark, customLogoWordmark, customAppIcon } = settings;
+    if (customLogoMark !== lastSavedLogosRef.current.mark) {
+      lastSavedLogosRef.current.mark = customLogoMark;
+      void saveLogoMark(src.profileId, src.linked, customLogoMark || null);
+    }
+    if (customLogoWordmark !== lastSavedLogosRef.current.wordmark) {
+      lastSavedLogosRef.current.wordmark = customLogoWordmark;
+      void saveLogoWordmark(src.profileId, src.linked, customLogoWordmark || null);
+    }
+    if (customAppIcon !== lastSavedLogosRef.current.appIcon) {
+      lastSavedLogosRef.current.appIcon = customAppIcon;
+      void saveAppIcon(src.profileId, src.linked, customAppIcon || null);
+    }
+  }, [settings.customLogoMark, settings.customLogoWordmark, settings.customAppIcon]);
+
+  const fileTimerRef = useRef(0);
+  const pendingFileJsonRef = useRef<string | null>(null);
+
+  const flushSettingsFile = useCallback(async () => {
+    window.clearTimeout(fileTimerRef.current);
+    fileTimerRef.current = 0;
+    const json =
+      pendingFileJsonRef.current ??
+      persistEffective(settingsRef.current, sourceRef.current.profileId, sourceRef.current.linked);
+    pendingFileJsonRef.current = null;
+    await writeSettingsFile(json);
+  }, []);
+
+  useEffect(() => {
+    if (!diskHydrated) return;
     try {
       const json = persistEffective(
         settings,
         sourceRef.current.profileId,
         sourceRef.current.linked,
       );
+      pendingFileJsonRef.current = json;
       window.clearTimeout(fileTimerRef.current);
-      fileTimerRef.current = window.setTimeout(() => void writeSettingsFile(json), 600);
+      fileTimerRef.current = window.setTimeout(() => {
+        pendingFileJsonRef.current = null;
+        void writeSettingsFile(json);
+      }, 600);
     } catch (e) {
       if (e instanceof DOMException && (e.name === "QuotaExceededError" || e.code === 22)) {
-        console.warn("[settings] localStorage quota exceeded, dropping avatar");
-        if (settings.harborAvatar != null) {
-          setSettings((s) => ({ ...s, harborAvatar: null }));
+        console.warn("[settings] localStorage quota exceeded, compacting stored settings");
+        try {
+          const compact = { ...settingsRef.current, harborAvatar: null };
+          const json = persistEffective(
+            compact,
+            sourceRef.current.profileId,
+            sourceRef.current.linked,
+          );
+          pendingFileJsonRef.current = json;
+          if (settingsRef.current.harborAvatar != null) {
+            setSettings((s) => ({ ...s, harborAvatar: null }));
+          }
+        } catch {
+          /* give up */
         }
       }
     }
-  }, [settings]);
+  }, [settings, diskHydrated]);
+
+  useEffect(() => bindSettingsFileFlush(flushSettingsFile), [flushSettingsFile]);
+
+  useEffect(() => {
+    const onHide = () => {
+      void flushSettingsFile();
+    };
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("beforeunload", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("beforeunload", onHide);
+      void flushSettingsFile();
+    };
+  }, [flushSettingsFile]);
 
   const tmdbLangRef = useRef<string | null>(null);
   useEffect(() => {
@@ -206,6 +329,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setMdblistBatchKey(settings.mdblistKey);
   }, [settings.mdblistKey]);
+
+  useEffect(() => {
+    setHarborImdbRatingsEnabled(settings.harborImdbRatings);
+  }, [settings.harborImdbRatings]);
 
   useEffect(() => {
     if (typeof document === "undefined" || !("fonts" in document)) return;
@@ -399,9 +526,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     tmdbLangRef.current = effectiveTmdbLanguage();
     imgLangRef.current = next.tmdbImageLangs.join(",");
     sourceRef.current = { profileId, linked };
-    persistEffective(next, profileId, linked);
-    settingsRef.current = next;
-    setSettings(next);
+    void hydrateLogosForSource(next, profileId, linked).then((merged) => {
+      lastSavedLogosRef.current = {
+        mark: merged.customLogoMark,
+        wordmark: merged.customLogoWordmark,
+        appIcon: merged.customAppIcon,
+      };
+      persistEffective(merged, profileId, linked);
+      settingsRef.current = merged;
+      setSettings(merged);
+    });
   }, []);
 
   const setSettingsLinked = useCallback(
