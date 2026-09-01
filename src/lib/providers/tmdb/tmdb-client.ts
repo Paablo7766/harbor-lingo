@@ -2,7 +2,7 @@ import { createRequestScheduler } from "@/lib/request-scheduler";
 import { safeFetch } from "@/lib/safe-fetch";
 import { imageRequestLang } from "./tmdb-image-lang";
 
-const tmdbRequests = createRequestScheduler({ concurrency: 6 });
+const tmdbRequests = createRequestScheduler({ concurrency: 3, staggerMs: 175 });
 
 export const TMDB = "https://api.themoviedb.org/3";
 export const IMG = "https://image.tmdb.org/t/p";

@@ -11,6 +11,7 @@ export {
   ensureHomeStartupMinimumPrefetch,
   ensureHomeStartupPrefetch,
   takeHomeStartupPrefetch,
+  whenHomeCoreRowsPrefetchSettled,
 } from "./prefetch-home-startup";
 export { useHomeAddonCatalogRows } from "./use-home-addon-catalog-rows";
 export { HarborQueryProvider } from "./provider";

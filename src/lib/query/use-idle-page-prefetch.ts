@@ -7,6 +7,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { useSettings } from "@/lib/settings";
 import type { Settings } from "@/lib/settings/types";
 import { useAuth } from "@/lib/auth";
+import { whenHomeCoreRowsPrefetchSettled } from "@/lib/query/prefetch-home-startup";
 import { prefetchDiscoverPage } from "@/views/discover/discover-queries";
 import { buildShowHero } from "@/views/shows/hero-curation";
 import { showSpecs } from "@/views/shows/show-specs";
@@ -14,9 +15,6 @@ import type { View } from "@/lib/view";
 
 /** Rows warmed per page on intent/idle preload. */
 const PRELOAD_LIMIT = 8;
-
-/** Delay after mount before background nav warmup (Home startup is fast now). */
-const POST_HOME_WARMUP_MS = 400;
 
 /** Preload one nav page's first rows into TanStack Query (hover / focus / idle). */
 export function preloadNavPage(
@@ -125,10 +123,9 @@ export function useIdlePagePrefetch() {
       }
     };
 
-    const id = window.setTimeout(run, POST_HOME_WARMUP_MS);
+    void whenHomeCoreRowsPrefetchSettled(settings, authKey).then(run);
     return () => {
       cancelled = true;
-      window.clearTimeout(id);
     };
   }, [tmdbKey, region, queryClient, authKey, settings]);
 }

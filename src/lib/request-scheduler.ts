@@ -18,17 +18,32 @@ type QueueEntry<T> = {
   reject: (reason?: unknown) => void;
 };
 
-export function createRequestScheduler(options: { concurrency: number }): RequestScheduler {
+export function createRequestScheduler(options: {
+  concurrency: number;
+  /** Minimum gap between task starts (ms). Serializes launch times, not in-flight overlap. */
+  staggerMs?: number;
+}): RequestScheduler {
   const concurrency = Math.floor(options.concurrency);
   if (!Number.isFinite(concurrency) || concurrency < 1) {
     throw new RangeError("request scheduler concurrency must be at least 1");
   }
+  const staggerMs = Math.max(0, Math.floor(options.staggerMs ?? 0));
 
   const queue: QueueEntry<unknown>[] = [];
   const inFlight = new Map<string, Promise<unknown>>();
   const pausedUntilByKey = new Map<string, number>();
   const pauseTimersByKey = new Map<string, ReturnType<typeof setTimeout>>();
   let active = 0;
+  let staggerChain: Promise<void> = Promise.resolve();
+
+  const waitForStagger = (): Promise<void> => {
+    if (staggerMs <= 0) return Promise.resolve();
+    const ticket = staggerChain.then(
+      () => new Promise<void>((resolve) => setTimeout(resolve, staggerMs)),
+    );
+    staggerChain = ticket.catch(() => {});
+    return ticket;
+  };
 
   const isKeyPaused = (key: string): boolean => {
     const until = pausedUntilByKey.get(key);
@@ -87,6 +102,7 @@ export function createRequestScheduler(options: { concurrency: number }): Reques
       active += 1;
       void (async () => {
         try {
+          await waitForStagger();
           const value = await entry.task();
           active -= 1;
           if (inFlight.get(entry.key) === entry.promise) inFlight.delete(entry.key);

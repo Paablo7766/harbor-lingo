@@ -8,7 +8,7 @@ import {
 import type { Meta } from "@/lib/cinemeta";
 import { INITIAL_VISIBLE_ROWS, MIN_SPLASH_ADDON_ROWS } from "@/lib/progressive-rows";
 import type { Settings } from "@/lib/settings/types";
-import { buildCinemetaRows, buildTmdbRows } from "@/views/home/home-rows";
+import { buildCinemetaRows, buildTmdbRows, hydrateCoreRowsFromCache } from "@/views/home/home-rows";
 import type { HomeRow } from "@/views/home/home-types";
 import { homeAddonCatalogQueryOptions, logHomeAddonQueryKey } from "./home-addon-catalog-query";
 
@@ -16,6 +16,9 @@ export type HomeStartupPrefetchResult = {
   coreRows: HomeRow[];
   hero: Meta[];
 };
+
+/** Splash may close once this budget elapses on a cold start (no disk cache). */
+const MINIMUM_PREFETCH_BUDGET_MS = 3500;
 
 function settingsPrefetchKey(settings: Settings, authKey: string | null): string {
   return [
@@ -30,8 +33,8 @@ function settingsPrefetchKey(settings: Settings, authKey: string | null): string
 
 let cachedResult: HomeStartupPrefetchResult | null = null;
 let cachedKey: string | null = null;
-let inflight: Promise<HomeStartupPrefetchResult> | null = null;
-let inflightKey: string | null = null;
+let coreFetchInflight: Promise<HomeStartupPrefetchResult> | null = null;
+let coreFetchInflightKey: string | null = null;
 let addonCatalogPrefetchInflight: Promise<void> | null = null;
 let addonCatalogPrefetchKey: string | null = null;
 
@@ -50,7 +53,7 @@ export function takeHomeStartupPrefetch(
   return cachedResult;
 }
 
-async function prefetchCoreRows(settings: Settings): Promise<HomeStartupPrefetchResult> {
+async function fetchCoreRowsFull(settings: Settings): Promise<HomeStartupPrefetchResult> {
   console.time("[harbor:splash] prefetchCoreRows");
   try {
     if (settings.homeMode === "classic") {
@@ -65,6 +68,9 @@ async function prefetchCoreRows(settings: Settings): Promise<HomeStartupPrefetch
       : await buildCinemetaRows().catch(() => ({ rows: [] as HomeRow[], hero: [] as Meta[] }));
 
     if (built.rows.length === 0) {
+      console.info(
+        "[harbor:splash] prefetchCoreRows: cinemeta fallback (primary source returned 0 rows)",
+      );
       built = await buildCinemetaRows().catch(() => ({
         rows: [] as HomeRow[],
         hero: [] as Meta[],
@@ -75,6 +81,54 @@ async function prefetchCoreRows(settings: Settings): Promise<HomeStartupPrefetch
   } finally {
     console.timeEnd("[harbor:splash] prefetchCoreRows");
   }
+}
+
+function ensureCoreRowsFetch(
+  settings: Settings,
+  authKey: string | null,
+): Promise<HomeStartupPrefetchResult> {
+  const key = settingsPrefetchKey(settings, authKey);
+  if (cachedKey === key && cachedResult) {
+    return Promise.resolve(cachedResult);
+  }
+  if (coreFetchInflight && coreFetchInflightKey === key) {
+    return coreFetchInflight;
+  }
+
+  coreFetchInflightKey = key;
+  coreFetchInflight = fetchCoreRowsFull(settings)
+    .then((result) => {
+      cachedResult = result;
+      cachedKey = key;
+      return result;
+    })
+    .finally(() => {
+      if (coreFetchInflightKey === key) {
+        coreFetchInflight = null;
+        coreFetchInflightKey = null;
+      }
+    });
+
+  return coreFetchInflight;
+}
+
+async function prefetchCoreRowsMinimum(
+  settings: Settings,
+  authKey: string | null,
+): Promise<HomeStartupPrefetchResult> {
+  const cached = hydrateCoreRowsFromCache(settings);
+  if (cached && cached.coreRows.length > 0) {
+    void ensureCoreRowsFetch(settings, authKey);
+    return cached;
+  }
+
+  const full = ensureCoreRowsFetch(settings, authKey);
+  return Promise.race([
+    full,
+    new Promise<HomeStartupPrefetchResult>((resolve) => {
+      window.setTimeout(() => resolve({ coreRows: [], hero: [] }), MINIMUM_PREFETCH_BUDGET_MS);
+    }),
+  ]);
 }
 
 function prefetchAddonCatalog(
@@ -151,56 +205,38 @@ async function prefetchInitialAddonRows(
   }
 }
 
-function runHomeStartupPrefetch(
-  queryClient: QueryClient,
-  settings: Settings,
-  authKey: string | null,
-): Promise<HomeStartupPrefetchResult> {
-  const key = settingsPrefetchKey(settings, authKey);
-  if (cachedKey === key && cachedResult) {
-    return Promise.resolve(cachedResult);
-  }
-  if (inflight && inflightKey === key) {
-    return inflight;
-  }
-
-  console.time("[harbor:splash] ensureHomeStartupMinimumPrefetch");
-  inflightKey = key;
-  const run = (async (): Promise<HomeStartupPrefetchResult> => {
-    try {
-      const [core] = await Promise.all([
-        prefetchCoreRows(settings),
-        prefetchInitialAddonRows(queryClient, authKey, settings.homeMode),
-      ]);
-      cachedResult = core;
-      cachedKey = key;
-      return core;
-    } finally {
-      console.timeEnd("[harbor:splash] ensureHomeStartupMinimumPrefetch");
-      if (inflightKey === key) {
-        inflight = null;
-        inflightKey = null;
-      }
-    }
-  })();
-  inflight = run;
-  return run;
-}
-
 /** Resolves once above-the-fold Home content is warm enough to dismiss the splash. */
 export function ensureHomeStartupMinimumPrefetch(
   queryClient: QueryClient,
   settings: Settings,
   authKey: string | null,
 ): Promise<HomeStartupPrefetchResult> {
-  return runHomeStartupPrefetch(queryClient, settings, authKey);
+  console.time("[harbor:splash] ensureHomeStartupMinimumPrefetch");
+  return Promise.all([
+    prefetchCoreRowsMinimum(settings, authKey),
+    prefetchInitialAddonRows(queryClient, authKey, settings.homeMode),
+  ])
+    .then(([core]) => core)
+    .finally(() => {
+      console.timeEnd("[harbor:splash] ensureHomeStartupMinimumPrefetch");
+    });
 }
 
-/** Idempotent startup warmup shared by the splash screen and Home. */
+/** Resolves once Home core-row network prefetch has settled (cache hit or full fetch done). */
+export function whenHomeCoreRowsPrefetchSettled(
+  settings: Settings,
+  authKey: string | null,
+): Promise<void> {
+  if (settings.homeMode === "classic") return Promise.resolve();
+  return ensureCoreRowsFetch(settings, authKey).then(() => undefined);
+}
+
+/** Idempotent startup warmup shared by the splash screen and Home — waits for network. */
 export function ensureHomeStartupPrefetch(
   queryClient: QueryClient,
   settings: Settings,
   authKey: string | null,
 ): Promise<HomeStartupPrefetchResult> {
-  return ensureHomeStartupMinimumPrefetch(queryClient, settings, authKey);
+  void prefetchInitialAddonRows(queryClient, authKey, settings.homeMode);
+  return ensureCoreRowsFetch(settings, authKey);
 }
