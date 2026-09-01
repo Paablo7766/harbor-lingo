@@ -19,6 +19,8 @@ export type HomeStartupPrefetchResult = {
 
 /** Splash may close once this budget elapses on a cold start (no disk cache). */
 const MINIMUM_PREFETCH_BUDGET_MS = 3500;
+const MINIMUM_PREFETCH_TIMER = "[harbor:splash] ensureHomeStartupMinimumPrefetch";
+let minimumPrefetchTimerOpen = false;
 
 function settingsPrefetchKey(settings: Settings, authKey: string | null): string {
   return [
@@ -211,14 +213,20 @@ export function ensureHomeStartupMinimumPrefetch(
   settings: Settings,
   authKey: string | null,
 ): Promise<HomeStartupPrefetchResult> {
-  console.time("[harbor:splash] ensureHomeStartupMinimumPrefetch");
+  if (!minimumPrefetchTimerOpen) {
+    console.time(MINIMUM_PREFETCH_TIMER);
+    minimumPrefetchTimerOpen = true;
+  }
   return Promise.all([
     prefetchCoreRowsMinimum(settings, authKey),
     prefetchInitialAddonRows(queryClient, authKey, settings.homeMode),
   ])
     .then(([core]) => core)
     .finally(() => {
-      console.timeEnd("[harbor:splash] ensureHomeStartupMinimumPrefetch");
+      if (minimumPrefetchTimerOpen) {
+        console.timeEnd(MINIMUM_PREFETCH_TIMER);
+        minimumPrefetchTimerOpen = false;
+      }
     });
 }
 
