@@ -6,7 +6,7 @@ export type RequestSchedulerSnapshot = {
 
 export type RequestScheduler = {
   schedule<T>(key: string, task: () => Promise<T>): Promise<T>;
-  pauseFor(milliseconds: number): void;
+  pauseFor(milliseconds: number, key: string): void;
   snapshot(): RequestSchedulerSnapshot;
 };
 
@@ -26,26 +26,64 @@ export function createRequestScheduler(options: { concurrency: number }): Reques
 
   const queue: QueueEntry<unknown>[] = [];
   const inFlight = new Map<string, Promise<unknown>>();
+  const pausedUntilByKey = new Map<string, number>();
+  const pauseTimersByKey = new Map<string, ReturnType<typeof setTimeout>>();
   let active = 0;
-  let pausedUntil = 0;
-  let pauseTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const armPauseTimer = () => {
-    if (pauseTimer != null) clearTimeout(pauseTimer);
-    const remaining = Math.max(0, pausedUntil - Date.now());
-    pauseTimer = setTimeout(() => {
-      pauseTimer = null;
-      drain();
-    }, remaining);
+  const isKeyPaused = (key: string): boolean => {
+    const until = pausedUntilByKey.get(key);
+    if (until == null) return false;
+    if (Date.now() >= until) {
+      pausedUntilByKey.delete(key);
+      const timer = pauseTimersByKey.get(key);
+      if (timer != null) {
+        clearTimeout(timer);
+        pauseTimersByKey.delete(key);
+      }
+      return false;
+    }
+    return true;
+  };
+
+  const armPauseTimer = (key: string) => {
+    const until = pausedUntilByKey.get(key);
+    if (until == null) return;
+    const remaining = Math.max(0, until - Date.now());
+    const existing = pauseTimersByKey.get(key);
+    if (existing != null) clearTimeout(existing);
+    pauseTimersByKey.set(
+      key,
+      setTimeout(() => {
+        pauseTimersByKey.delete(key);
+        pausedUntilByKey.delete(key);
+        drain();
+      }, remaining),
+    );
+  };
+
+  const armPauseTimersForQueued = () => {
+    const keys = new Set(queue.map((entry) => entry.key));
+    for (const key of keys) {
+      if (isKeyPaused(key)) armPauseTimer(key);
+    }
+  };
+
+  const findNextRunnableIndex = (): number => {
+    for (let i = 0; i < queue.length; i += 1) {
+      if (!isKeyPaused(queue[i]!.key)) return i;
+    }
+    return -1;
   };
 
   const drain = () => {
-    if (Date.now() < pausedUntil) {
-      armPauseTimer();
-      return;
-    }
     while (active < concurrency && queue.length > 0) {
-      const entry = queue.shift()!;
+      const index = findNextRunnableIndex();
+      if (index < 0) {
+        armPauseTimersForQueued();
+        return;
+      }
+
+      const entry = queue.splice(index, 1)[0]!;
       active += 1;
       void (async () => {
         try {
@@ -61,6 +99,10 @@ export function createRequestScheduler(options: { concurrency: number }): Reques
           entry.reject(error);
         }
       })();
+    }
+
+    if (queue.length > 0 && findNextRunnableIndex() < 0) {
+      armPauseTimersForQueued();
     }
   };
 
@@ -82,10 +124,12 @@ export function createRequestScheduler(options: { concurrency: number }): Reques
       return promise;
     },
 
-    pauseFor(milliseconds: number): void {
-      if (!Number.isFinite(milliseconds) || milliseconds <= 0) return;
-      pausedUntil = Math.max(pausedUntil, Date.now() + milliseconds);
-      if (queue.length > 0) armPauseTimer();
+    pauseFor(milliseconds: number, key: string): void {
+      if (!key || !Number.isFinite(milliseconds) || milliseconds <= 0) return;
+      const until = Date.now() + milliseconds;
+      pausedUntilByKey.set(key, Math.max(pausedUntilByKey.get(key) ?? 0, until));
+      armPauseTimer(key);
+      drain();
     },
 
     snapshot(): RequestSchedulerSnapshot {

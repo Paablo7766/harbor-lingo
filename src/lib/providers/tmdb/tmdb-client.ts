@@ -41,6 +41,21 @@ function logTmdbFailure(path: string, status: number, body: string): void {
   }
 }
 
+function parseRetryAfterMs(res: Response): number {
+  const header = res.headers.get("Retry-After");
+  if (!header) return 0;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+  const date = Date.parse(header);
+  if (Number.isFinite(date)) return Math.max(0, date - Date.now());
+  return 0;
+}
+
+function retryDelayMs(attempt: number, retryAfterMs = 0): number {
+  const backoffMs = Math.min(2000, 250 * 2 ** attempt);
+  return Math.max(retryAfterMs, backoffMs);
+}
+
 async function readJsonBody(res: Response, path: string): Promise<string> {
   const buf = await res.arrayBuffer();
   const bytes = new Uint8Array(buf);
@@ -65,19 +80,24 @@ async function tmdbHttpFetch(url: string): Promise<Response> {
   });
 }
 
-async function fetchTmdbOnce<T>(
-  url: string,
-  path: string,
-): Promise<{ status: number; data: T | null }> {
+type TmdbFetchResult<T> = {
+  status: number;
+  data: T | null;
+  retryAfterMs: number;
+};
+
+async function fetchTmdbOnce<T>(url: string, path: string): Promise<TmdbFetchResult<T>> {
   const res = await tmdbHttpFetch(url);
+  const retryAfterMs =
+    res.status === 429 || (res.status >= 500 && res.status < 600) ? parseRetryAfterMs(res) : 0;
   if (!res.ok) {
     const body = await readJsonBody(res, path).catch(() => "");
     logTmdbFailure(path, res.status, body);
-    return { status: res.status, data: null };
+    return { status: res.status, data: null, retryAfterMs };
   }
   const text = await readJsonBody(res, path);
   try {
-    return { status: 200, data: JSON.parse(text) as T };
+    return { status: 200, data: JSON.parse(text) as T, retryAfterMs: 0 };
   } catch (e) {
     const preview = JSON.stringify(text.slice(0, 200));
     console.warn(`[tmdb] parse failure on ${path} (len=${text.length}, starts=${preview})`, e);
@@ -99,16 +119,16 @@ export async function get<T>(
   const target = url.toString();
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      const backoffMs = Math.min(2000, 250 * 2 ** attempt);
-      const { status, data } = await tmdbRequests.schedule(target, async () => {
+      const { status, data, retryAfterMs } = await tmdbRequests.schedule(target, async () => {
         const result = await fetchTmdbOnce<T>(target, path);
         if (result.status === 429 || (result.status >= 500 && result.status < 600)) {
-          tmdbRequests.pauseFor(backoffMs);
+          const pauseMs = retryDelayMs(attempt, result.retryAfterMs);
+          tmdbRequests.pauseFor(pauseMs, target);
         }
         return result;
       });
       if (status === 429 || (status >= 500 && status < 600)) {
-        await new Promise((r) => setTimeout(r, backoffMs));
+        await new Promise((r) => setTimeout(r, retryDelayMs(attempt, retryAfterMs)));
         continue;
       }
       return data;
