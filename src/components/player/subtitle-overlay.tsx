@@ -1,14 +1,24 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useActiveKid } from "@/lib/profiles";
 import { useSettings } from "@/lib/settings";
+import { lookupWord } from "@/lib/subtitles/dictionary";
+
+/** Extra bottom offset (px) when player chrome is visible — tune if subtitles still overlap controls. */
+const CHROME_LIFT_PX = 80;
 
 type Props = {
   text: string;
   startSec: number;
   scale?: number;
+  liftForChrome?: boolean;
 };
 
-export const SubtitleOverlay = memo(function SubtitleOverlay({ text, startSec, scale = 1 }: Props) {
+export const SubtitleOverlay = memo(function SubtitleOverlay({
+  text,
+  startSec,
+  scale = 1,
+  liftForChrome = false,
+}: Props) {
   const { settings } = useSettings();
   const kid = useActiveKid();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -101,6 +111,30 @@ export const SubtitleOverlay = memo(function SubtitleOverlay({ text, startSec, s
 
   const opacity = useMemo(() => clamp(settings.subOpacity ?? 1, 0.1, 1), [settings.subOpacity]);
 
+  const [tooltip, setTooltip] = useState<{ id: string; translation: string } | null>(null);
+
+  const handleWordMouseEnter = useCallback((words: string[], index: number, id: string) => {
+    let translation: string | null = null;
+
+    if (index < words.length - 1) {
+      translation = lookupWord(`${words[index]} ${words[index + 1]}`);
+    }
+
+    if (!translation) {
+      translation = lookupWord(words[index]);
+    }
+
+    if (translation) {
+      setTooltip({ id, translation });
+    } else {
+      setTooltip(null);
+    }
+  }, []);
+
+  const handleWordMouseLeave = useCallback(() => {
+    setTooltip(null);
+  }, []);
+
   if (!text) return null;
 
   return (
@@ -108,13 +142,57 @@ export const SubtitleOverlay = memo(function SubtitleOverlay({ text, startSec, s
       key={startSec}
       ref={wrapRef}
       className={`pointer-events-none absolute inset-x-0 z-10 flex ${justify} px-[6%]`}
-      style={{ bottom: `${marginY}%`, opacity }}
+      style={{
+        bottom: `calc(${marginY}% + ${liftForChrome ? CHROME_LIFT_PX : 0}px)`,
+        opacity,
+        transition: "bottom 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease",
+      }}
     >
       <div className="max-w-[80%]" style={boxStyle}>
         <div style={baseTextStyle}>
-          {lines.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
+          {lines.map((line, i) => {
+            if (!line.trim()) return <div key={i} />;
+            const words = line.split(/\s+/);
+            return (
+              <div key={i}>
+                {words.map((word, wordIndex) => {
+                  const id = `${i}-${wordIndex}`;
+                  return (
+                    <span key={id} className="relative inline">
+                      <span
+                        className="pointer-events-auto"
+                        onMouseEnter={() => handleWordMouseEnter(words, wordIndex, id)}
+                        onMouseLeave={handleWordMouseLeave}
+                      >
+                        {word}
+                      </span>
+                      {tooltip?.id === id && (
+                        <span
+                          style={{
+                            position: "absolute",
+                            bottom: "100%",
+                            left: "50%",
+                            transform: "translateX(-50%)",
+                            marginBottom: "4px",
+                            padding: "4px 8px",
+                            background: "#1a1a1a",
+                            color: "#fff",
+                            fontSize: "12px",
+                            borderRadius: "4px",
+                            whiteSpace: "nowrap",
+                            zIndex: 10,
+                          }}
+                        >
+                          {tooltip.translation}
+                        </span>
+                      )}
+                      {wordIndex < words.length - 1 ? " " : ""}
+                    </span>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
