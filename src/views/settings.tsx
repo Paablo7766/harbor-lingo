@@ -377,20 +377,22 @@ export function Settings() {
               {active === "advanced" && <AdvancedPanel />}
             </Suspense>
 
-            <div className="mt-4 border-t border-edge-soft/40 pt-6">
-              <button
-                type="button"
-                onClick={() => setShowWordHoverTest((v) => !v)}
-                className="rounded-xl border border-edge-soft/60 bg-surface/50 px-4 py-2 text-sm text-ink hover:bg-surface/80"
-              >
-                {showWordHoverTest ? "Ocultar prueba de traducción" : "Ver prueba de traducción"}
-              </button>
-              {showWordHoverTest && (
-                <div className="mt-4">
-                  <WordHoverTest />
-                </div>
-              )}
-            </div>
+            {active === "advanced" && (
+              <div className="mt-4 border-t border-edge-soft/40 pt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowWordHoverTest((v) => !v)}
+                  className="rounded-xl border border-edge-soft/60 bg-surface/50 px-4 py-2 text-sm text-ink hover:bg-surface/80"
+                >
+                  {showWordHoverTest ? "Ocultar prueba de traducción" : "Ver prueba de traducción"}
+                </button>
+                {showWordHoverTest && (
+                  <div className="mt-4">
+                    <WordHoverTest />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </main>
         <BackToTop scrollRef={scrollRef} />

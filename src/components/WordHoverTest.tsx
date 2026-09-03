@@ -7,8 +7,17 @@ export function WordHoverTest() {
   const words = EXAMPLE_SENTENCE.split(/\s+/);
   const [tooltip, setTooltip] = useState<{ word: string; translation: string } | null>(null);
 
-  const handleMouseEnter = (word: string) => {
-    const translation = lookupWord(word);
+  const handleMouseEnter = (word: string, index: number) => {
+    let translation: string | null = null;
+
+    if (index < words.length - 1) {
+      translation = lookupWord(`${word} ${words[index + 1]}`);
+    }
+
+    if (!translation) {
+      translation = lookupWord(word);
+    }
+
     if (translation) {
       setTooltip({ word, translation });
     } else {
@@ -28,7 +37,7 @@ export function WordHoverTest() {
           <span key={`${word}-${index}`} className="relative inline">
             <span
               className="cursor-default hover:underline"
-              onMouseEnter={() => handleMouseEnter(word)}
+              onMouseEnter={() => handleMouseEnter(word, index)}
               onMouseLeave={handleMouseLeave}
             >
               {word}
