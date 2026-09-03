@@ -6,6 +6,7 @@ import type { RelayMode } from "./settings/relay-section";
 import { SettingsActiveContext, type SectionId } from "./settings/shared";
 import type { DebridKey } from "./settings/streaming-sources-panel";
 import { BackToTop } from "@/components/back-to-top";
+import { WordHoverTest } from "@/components/WordHoverTest";
 import { resetOmdbBudget } from "@/lib/providers/omdb";
 import { useSettings } from "@/lib/settings";
 import { useView } from "@/lib/view";
@@ -194,6 +195,7 @@ export function Settings() {
     (settingsSectionRequest.section as SectionId | null) ?? "account",
   );
   const [relayMode, setRelayMode] = useState<RelayMode>("panel");
+  const [showWordHoverTest, setShowWordHoverTest] = useState(false);
   const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
   const scrollRef = useRef<HTMLElement>(null);
 
@@ -374,6 +376,21 @@ export function Settings() {
 
               {active === "advanced" && <AdvancedPanel />}
             </Suspense>
+
+            <div className="mt-4 border-t border-edge-soft/40 pt-6">
+              <button
+                type="button"
+                onClick={() => setShowWordHoverTest((v) => !v)}
+                className="rounded-xl border border-edge-soft/60 bg-surface/50 px-4 py-2 text-sm text-ink hover:bg-surface/80"
+              >
+                {showWordHoverTest ? "Ocultar prueba de traducción" : "Ver prueba de traducción"}
+              </button>
+              {showWordHoverTest && (
+                <div className="mt-4">
+                  <WordHoverTest />
+                </div>
+              )}
+            </div>
           </div>
         </main>
         <BackToTop scrollRef={scrollRef} />
